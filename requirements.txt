@@ -1,0 +1,6 @@
+mouette==1.0.6
+osqp
+numba
+numpy
+scipy
+tqdm
