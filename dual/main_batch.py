@@ -74,7 +74,6 @@ if __name__ == "__main__":
                     qp_solver_verbose=False,
                     optim_verbose=False,
                     tqdm= False,
-                    snapshot_freq=0,
                     log_freq=1
                 )
 
