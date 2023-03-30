@@ -2,7 +2,7 @@ import numpy as np
 import math
 from math import pi
 import cmath
-from .common import barrier_neg, barrier_neg_prime, barrier_zero, barrier_zero_prime
+from .common import barrier_neg, barrier_neg_prime
 from numba import jit, prange
 
 @jit(nopython=True, parallel=True, cache=True)
@@ -274,7 +274,7 @@ def constraint_rotations_follow_ff_noJ(X : np.ndarray, I : np.ndarray, PT : np.n
     for i in prange(n):
         iw = I[i,0]
         iza, izb = I[i,1], I[i,2]
-        w = X[iw] # tangent(rotation / 2)
+        w = X[iw]
         zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
         pt = PT[i]
         wpt = cmath.rect(1, order*(pt - pi))
@@ -296,7 +296,7 @@ def constraint_rotations_follow_ff(X : np.ndarray, I : np.ndarray, PT : np.ndarr
     for i in prange(n):
         iw = I[i,0]
         iza, izb = I[i,1], I[i,2]
-        w = X[iw] # tangent(rotation / 2)
+        w = X[iw]
         zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
         pt = PT[i]
         wpt = cmath.rect(1, order*(pt - pi))
@@ -329,96 +329,64 @@ def constraint_rotations_follow_ff(X : np.ndarray, I : np.ndarray, PT : np.ndarr
 
     return val, valJ, rowJ, colJ
 
-######################################################################################################################################
-
 @jit(nopython=True, parallel=True, cache=True)
-def soft_feat_noJ(X, I, Tgt):
-    n = I.shape[0]
-    val = np.zeros(2*n, dtype=np.float64)
+def constraint_rotations_follow_ff_order1_noJ(X : np.ndarray, I : np.ndarray, PT : np.ndarray, n):
+    """Rot follows FF with FF order 1 (no singularities)"""
+    val  = np.zeros(2*n , dtype=np.float64)
     for i in prange(n):
-        e = I[i]
-        a1,b1,a2,b2 = X[4*e:4*e+4]
-        c1, d1 = Tgt[2*i,:]
-        c2, d2 = Tgt[2*i+1, :]
-        val[2*i] = a1*d1 - b1*c1
-        val[2*i+1] = a2*d2 - b2*c2
+        iw = I[i,0]
+        iza, izb = I[i,1], I[i,2]
+        w = X[iw] # tangent(rotation / 2)
+        zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
+        pt = PT[i]
+        wpt = cmath.rect(1, pt - pi)
+        eiwp = complex(1, w)
+        eiwm = complex(1, -w)
+        val_e = eiwp*zB - eiwm*wpt*zA
+        val[2*i] = val_e.real
+        val[2*i+1] = val_e.imag
     return val
 
 @jit(nopython=True, parallel=True, cache=True)
-def soft_feat(X, I, Tgt):
-    n = I.shape[0]
-    val = np.zeros(2*n, dtype=np.float64)
-    valJ = np.zeros(4*n, dtype=np.float64)
-    rowJ = np.zeros(4*n, dtype=np.int32)
-    colJ = np.zeros(4*n, dtype=np.int32)
+def constraint_rotations_follow_ff_order1(X : np.ndarray, I : np.ndarray, PT : np.ndarray, n):
+    """Rot follows FF with FF order 1 (no singularities)"""
+    val  = np.zeros(2*n , dtype=np.float64)
+    valJ = np.zeros(10*n, dtype=np.float64)
+    rowJ = np.zeros(10*n, dtype=np.int32)
+    colJ = np.zeros(10*n, dtype=np.int32)
+    
     for i in prange(n):
-        e = I[i]
-        a1,b1,a2,b2 = X[4*e:4*e+4]
-        c1, d1 = Tgt[2*i,:]
-        c2, d2 = Tgt[2*i+1, :]
-        # val[2*i] = (a1*d - b1*c)/np.sqrt(a1*a1+b1*b1)
-        # dv = (d*b1+c*a1) / (a1*a1+b1*b1)**1.5
-        # rowJ[4*i],   colJ[4*i],   valJ[4*i]   = 2*i, 4*e, b1*dv
-        # rowJ[4*i+1], colJ[4*i+1], valJ[4*i+1] = 2*i, 4*e+1, -a1*dv
+        iw = I[i,0]
+        iza, izb = I[i,1], I[i,2]
+        w = X[iw] # tangent(rotation / 2)
+        zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
+        pt = PT[i]
+        wpt = cmath.rect(1, pt - pi)
+
+        # Cayley transform
+        eiwp = complex(1, w)
+        eiwm = complex(1,-w)
+        val_e = eiwp*zB - eiwm*wpt*zA
         
-        # val[2*i+1] = (a2*d - b2*c) / np.sqrt(a2*a2 + b2*b2)
-        # dv = (d*b2+c*a2) / (a2*a2+b2*b2)**1.5
-        # rowJ[4*i+2], colJ[4*i+2], valJ[4*i+2] = 2*i+1, 4*e+2, b2*dv
-        # rowJ[4*i+3], colJ[4*i+3], valJ[4*i+3] = 2*i+1, 4*e+3, -a2*dv
+        val[2*i] = val_e.real
+        val[2*i+1] = val_e.imag
 
-        val[2*i] = a1*d1 - b1*c1
-        rowJ[4*i],   colJ[4*i],   valJ[4*i]   = 2*i, 4*e, d1
-        rowJ[4*i+1], colJ[4*i+1], valJ[4*i+1] = 2*i, 4*e+1, -c1
-        
-        val[2*i+1] = a2*d2 - b2*c2
-        rowJ[4*i+2], colJ[4*i+2], valJ[4*i+2] = 2*i+1, 4*e+2, d2
-        rowJ[4*i+3], colJ[4*i+3], valJ[4*i+3] = 2*i+1, 4*e+3, -c2
+        dev_w = 1j * (zB  +  zA * wpt)
+        rowJ[10*i], colJ[10*i], valJ[10*i] = 2*i, iw, dev_w.real
+        rowJ[10*i+1], colJ[10*i+1], valJ[10*i+1] = 2*i+1, iw, dev_w.imag
 
-    return val, valJ, rowJ, colJ
+        dev_a = -eiwm*wpt
+        rowJ[10*i+2], colJ[10*i+2], valJ[10*i+2] = 2*i, iza, dev_a.real
+        rowJ[10*i+4], colJ[10*i+4], valJ[10*i+4] = 2*i+1, iza, dev_a.imag
+        rowJ[10*i+3], colJ[10*i+3], valJ[10*i+3] = 2*i, iza+1, -dev_a.imag
+        rowJ[10*i+5], colJ[10*i+5], valJ[10*i+5] = 2*i+1, iza+1, dev_a.real
 
+        dev_b = eiwp
+        rowJ[10*i+6], colJ[10*i+6], valJ[10*i+6] = 2*i, izb, dev_b.real
+        rowJ[10*i+8], colJ[10*i+8], valJ[10*i+8] = 2*i+1, izb, dev_b.imag
+        rowJ[10*i+7], colJ[10*i+7], valJ[10*i+7] = 2*i, izb+1, -dev_b.imag
+        rowJ[10*i+9], colJ[10*i+9], valJ[10*i+9] = 2*i+1, izb+1, dev_b.real
 
-@jit(nopython=True, parallel=True, cache=True)
-def soft_feat_ff_noJ(X, I, Tgt):
-    n = I.shape[0]
-    val = np.zeros(2*n, dtype=np.float64)
-    for i in prange(n):
-        ind = I[i]
-        val[2*i] = X[ind] - Tgt[i,0]
-        val[2*i+1] = X[ind+1] - Tgt[i,1]
-    return val
-
-@jit(nopython=True, parallel=True, cache=True)
-def soft_feat_ff(X, I, Tgt):
-    n = I.shape[0]
-    val = np.zeros(2*n, dtype=np.float64)
-    valJ = np.zeros(2*n, dtype=np.float64)
-    rowJ = np.zeros(2*n, dtype=np.int32)
-    colJ = np.zeros(2*n, dtype=np.int32)
-    for i in prange(n):
-        ind = I[i]
-        val[2*i] = X[ind] - Tgt[i,0]
-        rowJ[2*i], colJ[2*i], valJ[2*i] = 2*i, ind, 1
-        val[2*i+1] = X[ind+1] - Tgt[i,1]
-        rowJ[2*i+1], colJ[2*i+1], valJ[2*i+1] = 2*i+1, ind+1, 1
-    return val, valJ, rowJ, colJ
-
-
-@jit(nopython=True, parallel=True, cache=True)
-def curv_ff_noJ(X, Tgt, n, sepFF):
-    val = np.zeros(2*n, dtype=np.float64)
-    for i in prange(2*n):
-        val[i] = X[sepFF + i] - Tgt[i]
-    return val
-
-@jit(nopython=True, parallel=True, cache=True)
-def curv_ff(X, Tgt, n, sepFF):
-    val = np.zeros(2*n, dtype=np.float64)
-    valJ = np.zeros(2*n, dtype=np.float64)
-    rowJ = np.zeros(2*n, dtype=np.int32)
-    colJ = np.zeros(2*n, dtype=np.int32)
-    for i in prange(2*n):
-        val[i] = X[sepFF + i] - Tgt[i]
-        rowJ[i], colJ[i], valJ[i] = i, sepFF+i, 1
     return val, valJ, rowJ, colJ
 
 ######################################################################################################################################
@@ -627,47 +595,6 @@ def distortion_isometric(X : np.ndarray, I : np.ndarray, jacs : np.ndarray):
     return val,valJ,rowJ,colJ
 
 @jit(nopython=True, parallel=True, cache=True)
-def distortion_shear_noJ(X : np.ndarray, I : np.ndarray, jacs : np.ndarray):
-    """Forces only the third term of isometric energy"""
-    n = I.shape[0]
-    val  = np.zeros(n , dtype=np.float64)
-    for i in prange(n):
-        _,ie0,ie1 = I[i,:]
-        ref_mat = jacs[i, :, :]
-        u0,v0 = X[ie0], X[ie0+1]
-        u1,v1 = X[ie1], X[ie1+1]
-        a,b,c,d = ref_mat[0,0], ref_mat[0,1], ref_mat[1,0], ref_mat[1,1]
-        val[i] = ((a*u0+c*u1)*(b*u0+d*u1) + (a*v0+c*v1)*(b*v0+d*v1))
-    return val
-
-
-@jit(nopython=True, parallel=True, cache=True)
-def distortion_shear(X : np.ndarray, I : np.ndarray, jacs : np.ndarray):
-    """Forces only the third term of isometric energy"""
-    n = I.shape[0]
-    val  = np.zeros(n , dtype=np.float64)
-    valJ = np.zeros(4*n, dtype=np.float64)
-    rowJ = np.zeros(4*n, dtype=np.int32)
-    colJ = np.zeros(4*n, dtype=np.int32)
-
-    for i in prange(n):
-        _,ie0,ie1 = I[i,:]
-        ref_mat = jacs[i, :, :]
-        u0,v0 = X[ie0], X[ie0+1]
-        u1,v1 = X[ie1], X[ie1+1]
-        a,b,c,d = ref_mat[0,0], ref_mat[0,1], ref_mat[1,0], ref_mat[1,1]
-        acu = (a*u0+c*u1)
-        acv = (a*v0+c*v1)
-        bdu = (b*u0+d*u1)
-        bdv = (b*v0+d*v1)
-        val[i] = (acu*bdu + acv*bdv)
-        rowJ[4*i],   colJ[4*i],   valJ[4*i]   = i, ie0,   (a*bdu + b*acu)
-        rowJ[4*i+1], colJ[4*i+1], valJ[4*i+1] = i, ie0+1, (a*bdv + b*acv)
-        rowJ[4*i+2], colJ[4*i+2], valJ[4*i+2] = i, ie1,   (c*bdu + d*acu)
-        rowJ[4*i+3], colJ[4*i+3], valJ[4*i+3] = i, ie1+1, (c*bdv + d*acv)
-    return val,valJ,rowJ,colJ
-
-@jit(nopython=True, parallel=True, cache=True)
 def distortion_det_noJ(X : np.ndarray, I : np.ndarray, dets : np.ndarray):
     n = I.shape[0]
     val  = np.zeros(n , dtype=np.float64)
@@ -700,76 +627,4 @@ def distortion_det(X : np.ndarray, I : np.ndarray, dets : np.ndarray):
         rowJ[4*i+1], colJ[4*i+1], valJ[4*i+1] = i, iE1+1, -E2[0] / d0
         rowJ[4*i+2], colJ[4*i+2], valJ[4*i+2] = i, iE2,   -E1[1] / d0
         rowJ[4*i+3], colJ[4*i+3], valJ[4*i+3] = i, iE2+1,  E1[0] / d0
-    return val, valJ, rowJ, colJ
-
-@jit(nopython=True, parallel=True, cache=True)
-def distortion_det3_noJ(X : np.ndarray, I : np.ndarray, dets : np.ndarray):
-    n = I.shape[0]
-    val  = np.zeros(3*n , dtype=np.float64)
-    for i in prange(n):
-        iS, iE1, iE2 = I[i,:]
-        S = np.array((X[iS], X[iS+1]))
-        E1 = np.array((X[iE1], X[iE1+1]))
-        E2 = np.array((X[iE2], X[iE2+1]))
-        d0,d1,d2 = dets[i,:]
-        det0 = E2[1] * E1[0] - E2[0] * E1[1]
-        det1 = E1[0] * S[1] - E1[1] * S[0]
-        det2 = E2[0] * S[1] - E2[1] * S[0]
-        val[3*i] = det0 / d0 - 1 # det(E1, E2)
-        val[3*i+1] = det1 / d1 - 1 # det(E1, S)
-        val[3*i+2] = det2 / d2 -1 # det(E2, S)
-    return val
-
-@jit(nopython=True, parallel=True, cache=True)
-def distortion_det3(X : np.ndarray, I : np.ndarray, dets : np.ndarray):
-    n = I.shape[0]
-    val  = np.zeros(3*n , dtype=np.float64)
-    valJ = np.zeros(12*n, dtype=np.float64)
-    rowJ = np.zeros(12*n, dtype=np.int32)
-    colJ = np.zeros(12*n, dtype=np.int32)
-    for i in prange(n):
-        iS, iE1, iE2 = I[i,:]
-        S = np.array((X[iS], X[iS+1]))
-        E1 = np.array((X[iE1], X[iE1+1]))
-        E2 = np.array((X[iE2], X[iE2+1]))
-        d0,d1,d2 = dets[i,:]
-
-        # first : orientation. Quadrilaterals should not flip
-        # det(E1, E2) > 0
-        det0 = E2[1] * E1[0] - E2[0] * E1[1]
-        val[3*i] = det0 / d0 -1
-        rowJ[12*i],   colJ[12*i],   valJ[12*i]   = 3*i, iE1,    E2[1] / d0
-        rowJ[12*i+1], colJ[12*i+1], valJ[12*i+1] = 3*i, iE1+1, -E2[0] / d0
-        rowJ[12*i+2], colJ[12*i+2], valJ[12*i+2] = 3*i, iE2,   -E1[1] / d0
-        rowJ[12*i+3], colJ[12*i+3], valJ[12*i+3] = 3*i, iE2+1,  E1[0] / d0
-
-        # second : singularity position. Center point should stay inside triangle
-        # det(E1, S)>0
-        det1 = E1[0] * S[1] - E1[1] * S[0]
-        val[3*i+1] = det1 / d1 - 1
-        rowJ[12*i+4], colJ[12*i+4], valJ[12*i+4] = 3*i+1, iE1,    S[1] / d1
-        rowJ[12*i+5], colJ[12*i+5], valJ[12*i+5] = 3*i+1, iE1+1, -S[0] / d1
-        rowJ[12*i+6], colJ[12*i+6], valJ[12*i+6] = 3*i+1, iS,    -E1[1] / d1
-        rowJ[12*i+7], colJ[12*i+7], valJ[12*i+7] = 3*i+1, iS+1,   E1[0] / d1
-
-        # det(E2, S)>0
-        det2 = E2[0] * S[1] - E2[1] * S[0]
-        val[3*i+2] = det2 / d2 -1
-        rowJ[12*i+8], colJ[12*i+8], valJ[12*i+8] = 3*i+2, iE2,    S[1] / d2
-        rowJ[12*i+9], colJ[12*i+9], valJ[12*i+9] = 3*i+2, iE2+1, -S[0] / d2
-        rowJ[12*i+10], colJ[12*i+10], valJ[12*i+10] = 3*i+2, iS,    -E2[1] / d2
-        rowJ[12*i+11], colJ[12*i+11], valJ[12*i+11] = 3*i+2, iS+1,   E2[0] / d2
-
-    return val, valJ, rowJ, colJ
-
-@jit(nopython=True, parallel=True, cache=True)
-def rotation_norm_noJ(X,n,sepRot):
-    return X[sepRot:sepRot+n].astype(np.float64)
-
-@jit(nopython=True, parallel=True, cache=True)
-def rotation_norm(X,n,sepRot):
-    val = X[sepRot:sepRot+n].astype(np.float64)
-    valJ = np.ones_like(val, dtype=np.float64)
-    rowJ = np.array(range(n), dtype=np.int32)
-    colJ = np.array(range(sepRot, sepRot+n), dtype=np.int32)
     return val, valJ, rowJ, colJ

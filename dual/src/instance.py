@@ -14,50 +14,35 @@ class Instance:
     """
     def __init__(self, mesh : M.mesh.SurfaceMesh):
         self.mesh : M.mesh.SurfaceMesh = mesh # the original mesh
-        self.work_mesh : M.mesh.SurfaceMesh = None # the working mesh (combinatorics change due to feature edges)
+        self.work_mesh : M.mesh.SurfaceMesh = None # the working mesh (combinatorics change due to feature edges being split and counted as boundary)
         self.param_mesh : M.mesh.SurfaceMesh = None # the parametrization as if (u,v) = (x,y). Debug output
         self.disk_mesh : M.mesh.SurfaceMesh = None # the mesh with uvs but with disk topology (cut along all seams). Debug output
-        self.cut_graph : M.mesh.PolyLine = None # seams
+        self.cut_graph : M.mesh.PolyLine = None # seams as line graph
         self.singu_ptcld : M.mesh.PointCloud = None # singularities as point cloud
 
         self.feat : FeatureCutter = None
 
-        self.order = 4 # order of the frame field
+        self.order = 4 # order of the frame field (4 by default)
 
         # attributes (/!\ on work_mesh)
         self.curvature : M.Attribute = None # gaussian curvature at vertices
         self.barycenters : M.Attribute = None # barycenters of triangles
         self.areas : M.Attribute = None # areas of triangles
         self.edge_lengths : np.ndarray = None # length of all edges
+        self.vnormals : M.Attribute = None # vector normals
         self.angles : M.Attribute = None # angle at each triangle corners
         self.defect : M.Attribute = None # sum of angles around a vertex (/!\ not 'real' defect which is 2*pi - this)
-        self.parallel_transport = dict()
+        self.connection : M.processing.SurfaceConnectionVertices = None
+
         self.PT_array : np.ndarray = None # parallel transport as a numpy array
-        self.PT_array2 : np.ndarray = None # the two are different if we initialize following curvature
-        self.cotan_weight : np.ndarray = None
 
         self._singular_faces : M.Attribute = None # boolean flag on faces. Accessed via a property
         self.singular_vertices : M.Attribute = None # boolean flag on vertices
-
-        # soft feature alignment
-        self.soft_feat_indices : np.ndarray = None
-        self.soft_feat_indices_ff : np.ndarray = None
-        self.soft_feat_normals : np.ndarray = None
-        self.soft_feat_ff : np.ndarray = None
-
-        # Local bases
-        self.vbaseX : M.Attribute = None # local basis X vector (tangent)
-        self.vbaseY : M.Attribute = None # local basis Y vector (tangent)
-        self.vnormals : M.Attribute = None # local basis Z vector (normal)
 
         # Distortion and barriers
         self.init_var : np.ndarray = None # copy of self.var before optimizing. Kept as a reference.
         self.ref_dets : np.ndarray = None
         self.dist_matrices : np.ndarray = None
-
-        # curvature constraints
-        self.curvFF : M.processing.framefield.CurvatureVertices = None
-        self.curvFFvar : np.ndarray = None
 
         # reconstruction
         self.tree : M.processing.trees.FaceSpanningTree = None
@@ -73,12 +58,10 @@ class Instance:
         self.var_sep_pt = 4*len(self.mesh.edges)
         self.var_sep_rot : int = 0 # separator between mesh vars and rotations (first index of a rotation)
         self.var_sep_ff : int = 0 # separator between rotations vars and framefield var (first index of a ff var)
-        self.var_sep_scale : int = 0 # separator between framefield var and scale var (first index of a scale)
 
         self.edge_indices : np.ndarray = None # indices necessary for edge constraint energy
         self.rotFF_indices : np.ndarray = None # indices necessary for rot_follow_FF energy
         self.quad_indices : np.ndarray = None
-        self.scale_indices : np.ndarray = None
 
         self.initialized = False # init flag
 
@@ -109,6 +92,7 @@ class Instance:
         if self._singular_faces is None:
             # compute
             self._singular_faces = self.mesh.faces.create_attribute("singularities", int)
+            if self.order == 1 : return self._singular_faces
             
             ZERO_THRESHOLD = 1e-3
             if self.work_mesh.faces.has_attribute("defect"):
@@ -137,8 +121,8 @@ class Instance:
         FFMesh = M.mesh.new_polyline()
         L = M.attributes.mean_edge_length(self.work_mesh)/4
         for id_vertex, P in enumerate(self.work_mesh.vertices):
-            if id_vertex >= len(self.vbaseX): continue
-            E,N = self.vbaseX[id_vertex], self.vnormals[id_vertex]
+            if id_vertex >= len(self.connection._baseX): continue
+            E,N = self.connection.base(id_vertex)[0], self.vnormals[id_vertex]
             if geom.norm(N)<1e-8: continue
             z = complex(self.var[self.var_sep_ff + 2*id_vertex], self.var[self.var_sep_ff + 2*id_vertex + 1])
             angle = cmath.phase(z)/self.order

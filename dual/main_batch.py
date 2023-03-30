@@ -1,3 +1,8 @@
+"""
+main_batch.py
+Runs the parametrization algorithm on all the meshes found in the given folder, with the same parameters on all models
+"""
+
 import os
 import csv
 import argparse
@@ -5,8 +10,7 @@ import numpy as np
 from time import time
 
 import mouette as M
-from src.common import export_dict_as_csv
-from src.worker import Distortion, InitMode, Options, VerboseOptions
+from src.common import export_dict_as_csv, Distortion, InitMode, Options, VerboseOptions
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
@@ -21,9 +25,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("dir", type=str, help="path to the input mesh")
-    parser.add_argument("-report-name", "--report-name", default="")
+    parser.add_argument("-report-name", "--report-name", default="", help="name of the final csv report")
     
-    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "arap", "shear",  "scale"], default="none", \
+    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "conf", "arap", "iso", "area", "scale"], default="none", \
         help="choice of distortion energy")
     
     parser.add_argument("-init-mode", "--init-mode", type=str, choices=["zero", "smooth", "curv", "random"], default="zero", \
@@ -35,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("-feat", "--detect-features", action="store_true", \
         help="enables feature detection and alignment")
     
-    parser.add_argument("-resume", "--resume", action="store_true")
+    parser.add_argument("-resume", "--resume", action="store_true", help="skips input models for which an output already exists in order to resume the run")
 
     args = parser.parse_args()
     

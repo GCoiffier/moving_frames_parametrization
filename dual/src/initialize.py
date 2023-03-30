@@ -5,7 +5,6 @@ from osqp import OSQP
 
 import mouette as M
 import mouette.geometry as geom
-from mouette.processing.framefield import CadFF2DVertices
 
 from .featurecut import FeatureCutter
 from .instance import Instance
@@ -23,8 +22,10 @@ def rescale_input_mesh(I : Instance):
 
 def init_corners_and_features(I : Instance, only_border: bool, verbose: bool):
     """Initializes features and cut the mesh to create the work mesh"""
+
     I.feat = FeatureCutter(I.mesh, only_border=only_border, corner_order=I.order, verbose=verbose)()
     I.work_mesh = I.feat.cut_mesh # we split the mesh along feature edges
+
     vertex_cut_attr = I.work_mesh.vertices.create_attribute("cuts", int)
     for i,(v,split_v) in enumerate(I.feat.cut_vertices.items()):
         for b in split_v:
@@ -44,95 +45,29 @@ def init_attributes(I : Instance):
     for C,V in enumerate(I.work_mesh.face_corners):
         I.defect[V] += I.angles[C]
 
-def init_soft_features(I : Instance):
-    if not I.work_mesh.vertices.has_attribute("selection"): return
-    select = I.work_mesh.vertices.get_attribute("selection") 
-    soft_edge = I.work_mesh.edges.create_attribute("soft_feat", bool)
-    I.soft_feat_indices = []
-    I.soft_feat_indices_ff = []
-    I.soft_feat_normals = []
-    I.soft_feat_ff = []
-
-    # Build directions of constraint
-    directions = dict()
-    for ie,(A,B) in enumerate(I.work_mesh.edges):
-        if select[A] and select[B]:
-            soft_edge[ie] = True
-            for V,iV in ((A,4*ie), (B,4*ie+2)):
-                v = complex(I.var[iV], I.var[iV+1])
-                if directions.get(V,None) is None:
-                    directions[V] = v
-                else:
-                    v2 = directions[V]
-                    if (v2.conjugate()*v).real<0: 
-                        directions[V] -= v
-                    else:
-                        directions[V] += v  
-    for V in directions:
-        directions[V] =  (directions[V] / abs(directions[V]))
-
-    # Edge alignment
-    for e in soft_edge:
-        A,B = I.work_mesh.edges[e]
-        I.soft_feat_indices.append(e)
-        assert select[A] and select[B]
-        for V in (A,B) :
-            I.soft_feat_normals.append([directions[V].real, directions[V].imag])
-
-    # Frame field alignment
-    for A,ff in directions.items():
-        ff = (ff/abs(ff))**4
-        ind = I.var_sep_ff + 2*A
-        I.var[ind] = ff.real
-        I.var[ind+1] = ff.imag
-        I.soft_feat_indices_ff.append(ind)
-        I.soft_feat_ff.append([ff.real, ff.imag])
-
-    I.soft_feat_indices = np.array(I.soft_feat_indices, dtype=np.int32)
-    I.soft_feat_indices_ff = np.array(I.soft_feat_indices_ff, dtype=np.int32)
-    I.soft_feat_normals = np.array(I.soft_feat_normals, dtype=np.float64)
-    I.soft_feat_ff = np.array(I.soft_feat_ff, dtype=np.float64)
-
-def init_local_bases(I : Instance):
+def init_local_bases(I : Instance, free_bnd):
     """ Initializes natural parallel transport """
-    NV = len(I.work_mesh.vertices)
-    I.vbaseX = M.ArrayAttribute(float, NV, 3)
-    I.vbaseY = M.ArrayAttribute(float, NV, 3)
+    I.connection = M.processing.SurfaceConnectionVertices(I.work_mesh, feat=I.feat, vnormal=I.vnormals, angles=I.angles)
 
-    for u in I.work_mesh.id_vertices:
-        # find basis vector -> first edge
-        P = M.Vec(I.work_mesh.vertices[u])
-        N = I.vnormals[u]
-
-        # extract basis edge
-        v = I.work_mesh.connectivity.vertex_to_vertex(u)[0]
-        E = I.work_mesh.vertices[v] - P
-        X = M.Vec.normalized(E - np.dot(E,N)*N) # project on tangent plane
-        I.vbaseX[u] = X
-        I.vbaseY[u] = geom.cross(N,X)
-    
-        # initialize angles of every edge in this basis
-        ang = 0.
-        if u in I.feat.feature_vertices:
-            dfct = I.feat.corners[u] * 2 * pi / I.order # target defect (multiple of pi/order)
-            for v in I.work_mesh.connectivity.vertex_to_vertex(u):
-                T = I.work_mesh.half_edges.adj(u,v)[0]
-                I.parallel_transport[(u,v)] = ang * dfct / I.defect[u]
-                c = I.work_mesh.connectivity.vertex_to_corner_in_face(u,T)
-                if c is None: continue
-                ang += I.angles[c]
-        else:
-            # normal vertex in interior -> flatten to 2pi
-            for v in I.work_mesh.connectivity.vertex_to_vertex(u):
-                T,iu,_ = I.work_mesh.half_edges.adj(u,v)
-                I.parallel_transport[(u,v)] = ang * 2 * pi / I.defect[u]
-                c = I.work_mesh.connectivity.vertex_to_corner_in_face(u,T)
+    if free_bnd:
+        for u in I.mesh.id_vertices:
+            # initialize angles of every edge in this basis -> flatten to 2pi
+            ang = 0.
+            bnd = I.mesh.is_vertex_on_border(u)
+            for v in I.mesh.connectivity.vertex_to_vertex(u):
+                T = I.mesh.half_edges.adj(u,v)[0]
+                if bnd:
+                    I.connection._transport[(u,v)] = ang * pi / I.defect[u]
+                else:
+                    I.connection._transport[(u,v)] = ang * 2 * pi / I.defect[u]
+                c = I.mesh.connectivity.vertex_to_corner_in_face(u,T)
+                if c is None : continue
                 ang += I.angles[c]
 
     # compute parallel transport array
     I.PT_array = np.zeros(len(I.work_mesh.edges), dtype=np.float64)
     for e,(A,B) in enumerate(I.work_mesh.edges):
-        I.PT_array[e] = principal_angle(I.parallel_transport[(B,A)] - I.parallel_transport[(A,B)])
+        I.PT_array[e] = principal_angle(I.connection.transport(B,A) - I.connection.transport(A,B))
 
     # compute curvature on the mesh
     if I.work_mesh.faces.has_attribute("curvature"):
@@ -142,10 +77,10 @@ def init_local_bases(I : Instance):
         for iF,F in enumerate(I.work_mesh.faces):
             v = 1+0j
             for a,b in M.utils.cyclic_pairs(F):
-                v *= cmath.rect(1., I.parallel_transport[(b,a)] - I.parallel_transport[(a,b)] - pi)
+                v *= cmath.rect(1., I.connection.transport(b,a)- I.connection.transport(a,b) - pi)
             I.curvature[iF] = cmath.phase(v)
 
-def init_variables_edges(I : Instance):
+def init_variables_edges(I : Instance, free_bnd):
     """Initializes variables of the parametrization as well as indirections to retrieve edges or charts"""
     I.var_sep_pt = 4*len(I.work_mesh.edges)
     n_edge_var = 4*len(I.work_mesh.edges) + 6*len(I.work_mesh.faces)
@@ -163,7 +98,7 @@ def init_variables_edges(I : Instance):
             Pv = I.work_mesh.vertices[v]
             elen = EL[ie]/2
             I.edge_lengths[ie,0] = elen
-            eangle = I.parallel_transport[(u,v)]
+            eangle = I.connection.transport(u,v)
 
             evar = cmath.rect(elen, eangle)
             if direct:
@@ -180,10 +115,16 @@ def init_variables_edges(I : Instance):
                     Pbary = I.barycenters[T]
                     slen = geom.distance(Pbary, Pu)
                     sangle = geom.angle_3pts(Pv, Pu, Pbary)
-                    if u in I.feat.feature_vertices:
-                        sangle *= (pi/I.order * I.feat.corners[u]) / I.defect[u]
+                    if free_bnd:
+                        if I.mesh.is_vertex_on_border(u):
+                            sangle *= pi/ I.defect[u]
+                        else:
+                            sangle *= 2*pi / I.defect[u]
                     else:
-                        sangle *= 2*pi / I.defect[u]
+                        if u in I.feat.feature_vertices:
+                            sangle *= (pi/I.order * I.feat.corners[u]) / I.defect[u]
+                        else:
+                            sangle *= 2*pi / I.defect[u]
                     svar = cmath.rect(slen, eangle+sangle) if iw==0 else cmath.rect(slen, eangle-sangle)
                     var_edge[I.var_sep_pt+6*T+2*iuT] = svar.real
                     var_edge[I.var_sep_pt+6*T+2*iuT+1] = svar.imag
@@ -238,7 +179,7 @@ def init_var_rotations(I : Instance, var_ff):
     ## build angles on feature edges
     for e in I.feat.feature_edges:
         A,B = I.work_mesh.edges[e]
-        aA,aB = I.parallel_transport[(A,B)], I.parallel_transport[(B,A)] # local basis orientation for A and B
+        aA,aB = I.connection.transport(A,B), I.connection.transport(B,A) # local basis orientation for A and B
         fA = complex(var_ff[2*A], var_ff[2*A+1]) # representation complex for frame field at A
         fB = complex(var_ff[2*B], var_ff[2*B+1]) # representation complex for frame field at B
         uB = roots(fB, I.order)[0]
@@ -293,25 +234,22 @@ def init_var_rotations(I : Instance, var_ff):
         var_rot[e] = math.tan(res[e]/2) if res is not None else 0.
     return var_rot
 
-def init_var_ff_and_rot_full(I : Instance, compute_singus : bool,  verbose : bool = False):
+def init_var_ff_and_rot_full(I : Instance, compute_singus : bool, verbose : bool = False):
     """
     Computes a frame field on the mesh and initializes variables of the frame field and rotations according to this fixed frame field.
     """
 
-    ff = CadFF2DVertices(I.work_mesh, order=I.order, verbose=verbose)
-    ### hacky way of imposing local bases on the frame field -> decompose its initialization and replace the step
-    ff._initialize_attributes()
-    ff.feat = I.feat
+    ff = M.framefield.SurfaceFrameField(
+        I.work_mesh, 
+        "vertices", 
+        I.order, 
+        features=True,
+        cad_correction=True,
+        smooth_normals=False,
+        custom_connection=I.connection,
+        custom_feature=I.feat)
 
-    # instead of self.ff._initialize_basis()
-    ff.vbaseX = I.vbaseX
-    ff.vbaseY = I.vbaseY
-    ff.parallel_transport = I.parallel_transport
-
-    ff._initialize_variables(mean_normals=False)
-    ff._initialize_target_w()
-    ff.initialized = True
-
+    ff.initialize()
     ff.optimize()
     ff.flag_singularities() # build attributes 'faces.singuls' and 'edges.angles'
     if compute_singus:
@@ -343,67 +281,11 @@ def init_var_ff_and_rot_full(I : Instance, compute_singus : bool,  verbose : boo
                 break
     return var_ff, var_rot
 
-def init_var_ff_and_rot_no_singus(I : Instance):
-    """
-    Compute a frame field with no singularities, ie dw = 0 everywhere
-    """
-    # init var arrays
-    I.var_sep_ff = I.nvar
-    I.nvar += 2*len(I.work_mesh.vertices)
-    I.var_sep_rot = I.nvar
-    I.nvar += len(I.work_mesh.edges)
-
-    nvar = len(I.mesh.edges)
-    ncstr = len(I.mesh.faces)
-    CstM = sp.lil_matrix((ncstr,nvar))
-    Cst0 = np.zeros(ncstr)
-    for i,f in enumerate(I.work_mesh.faces):
-        for u,v in M.utils.cyclic_pairs(f):
-            e = I.work_mesh.connectivity.edge_id(u,v)
-            CstM[i,e] = 1 if (u<v) else -1
-        Cst0[i] = I.curvature[i]
-    CstM = CstM.tocsc()
-    A = sp.eye(nvar, format="csc")
-    instance = OSQP()
-    instance.setup(P=A, q=None, A=CstM, u=Cst0, l=Cst0)
-    res = instance.solve()
-    var_rot = res.x
-
-    var_ff = np.zeros(2*len(I.work_mesh.vertices), dtype=np.float64)
-    tree = M.processing.trees.EdgeSpanningTree(I.work_mesh)()
-    for v,f in tree.traverse():
-        if f is None: 
-            var_ff[2*v:2*v+2] = [1,0]
-            continue
-        zf = complex(var_ff[2*f], var_ff[2*f+1])
-        e = I.work_mesh.connectivity.edge_id(f,v)
-        pt = I.parallel_transport[(v,f)] - I.parallel_transport[(f,v)] + pi
-        w = var_rot[e] if v>f else -var_rot[e]
-        zv = zf * cmath.rect(1, 4*(w + pt))
-        var_ff[2*v] = zv.real
-        var_ff[2*v+1] = zv.imag
-
-    for e in I.work_mesh.id_edges:
-        var_rot[e] = math.tan(var_rot[e]/2)
-
-    return var_ff, var_rot
-
 def init_var_ff_and_rot_curvature(I : Instance, optim_fixed_ff:bool):
     assert I.order == 4
 
-    ff = M.framefield.CurvatureVertices(I.work_mesh, curv_threshold=0.08, patch_size=5)
-    ### hacky way of imposing local bases on the frame field -> decompose its initialization and replace the step
-    ff._initialize_attributes()
-    ff.feat = I.feat
-
-    # instead of ff._initialize_basis()
-    ff.vbaseX = I.vbaseX
-    ff.vbaseY = I.vbaseY
-    ff.parallel_transport = I.parallel_transport
-    ff._build_patch_connectivity_matrix()
-    ff._initialize_curv_matrices()
-    ff._initialize_variables(mean_normals=False)
-    ff.initialized = True
+    ff = M.framefield.PrincipalDirections(I.work_mesh,"vertices", features=True, curv_threshold=0.08, patch_size=5, custom_features=I.feat) 
+    ff.initialize()
     ff.optimize(n_smooth=0)
     ff.flag_singularities() # build attributes 'faces.singuls' and 'edges.angles'
     if optim_fixed_ff:
@@ -483,31 +365,63 @@ def init_var_ff_and_rot_random(I : Instance, var_edge):
         I.feat.local_feat_edges[0] = []
     return var_ff, var_rot
 
+def init_var_ff_and_rot_free_bnd(I : Instance):
+    """
+    Frames not aligned with boundary + no cones
+    Simples implementation of Trivial Connection on Surfaces by Crane et al.
+    """
+    n = len(I.mesh.vertices)
+    I.var_sep_ff = I.nvar
+    I.nvar += 2*n
+    var_ff = np.zeros(2*n, dtype=np.float64)
+
+    # Initialize rotations
+    # min ||w||^2 s.t. dw = curvature
+    I.var_sep_rot = I.nvar
+    m = len(I.mesh.edges)
+    I.nvar += m
+
+    Cst = sp.lil_matrix((len(I.mesh.faces), m))
+    K = np.zeros(len(I.mesh.faces))
+    for iF in I.mesh.id_faces:
+        A,B,C = I.mesh.faces[iF]
+        for u,v in [(A,B), (B,C), (C,A)]:
+            e = I.mesh.connectivity.edge_id(u,v)
+            Cst[iF,e] = 1 if (u<v) else -1
+        K[iF] = I.curvature[iF]
+
+    osqp_instance = OSQP()
+    osqp_instance.setup(sp.eye(m,format="csc"), A=Cst.tocsc(), l=K, u=K, verbose=False)
+    omegas = osqp_instance.solve().x
+    var_rot = np.zeros_like(omegas)
+    for e in I.mesh.id_edges:
+        var_rot[e] = math.tan(omegas[e]/2)
+
+    # Initialize frame field using a tree
+    tree = M.processing.trees.EdgeSpanningTree(I.mesh, 0, True)()
+    for j,i in tree.traverse():
+        if i is None : # root
+            var_ff[2*j], var_ff[2*j+1] = 1., 0.
+            continue
+        e = I.mesh.connectivity.edge_id(i,j)
+        aij, aji = I.connection.transport(i,j), I.connection.transport(j,i)
+        ci = complex(var_ff[2*i], var_ff[2*i+1])
+        cj = ci * cmath.rect(1, omegas[e] + aji - aij - pi) if j<i else ci * cmath.rect(1, -omegas[e] + aji - aij - pi)
+        var_ff[2*j] = cj.real
+        var_ff[2*j+1] = cj.imag
+    return var_ff, var_rot
+
 def init_distortion_matrices(I : Instance):
     mats = []
     for (iS, ie1, ie2) in I.quads:
         # uS,vS = I.init_var[iS], I.init_var[iS+1]
-        ue1,ve1 = I.init_var[ie1], I.init_var[ie1+1]
+        ue1, ve1 = I.init_var[ie1], I.init_var[ie1+1]
         ue2, ve2 = I.init_var[ie2], I.init_var[ie2+1]
 
         m1 = np.array([[ue1, ue2], 
                        [ve1, ve2]])
         m1_inv = np.linalg.inv(m1)
         mats.append(m1_inv)
-
-    # for T in I.work_mesh.id_faces:
-    #     X,Y,_ = geom.face_basis(*(I.work_mesh.vertices[_p] for _p in I.work_mesh.faces[T]))
-    #     for A,B,C in M.utils.cyclic_permutations(I.work_mesh.faces[T]):
-    #         pA,pB,pC = (I.work_mesh.vertices[_p] for _p in (A,B,C))
-    #         eBA = pA-pB
-    #         eBA = M.Vec(X.dot(eBA), Y.dot(eBA))/2
-    #         eBC = pC-pB
-    #         eBC = M.Vec(X.dot(eBC), Y.dot(eBC))/2
-    #         m1 = np.array([[eBA.x, eBC.x], 
-    #                        [eBA.y, eBC.y]])
-    #         m1_inv = np.linalg.inv(m1)
-    #         mats.append(m1_inv)
-
     I.dist_matrices = np.array(mats)
 
 def init_edge_indices(I : Instance):
@@ -592,22 +506,24 @@ class Initializer(Worker):
         init_attributes(self.instance)
 
         self.log("Initialize local flattened bases")
-        init_local_bases(self.instance)
+        init_local_bases(self.instance, self.options.free_boundary)
 
         self.log("Initialize variables")
         # /!\ respect order of initialization
-        var_edges = init_variables_edges(self.instance)
+        var_edges = init_variables_edges(self.instance, self.options.free_boundary)
         
-        if self.options.initMode == InitMode.CURVATURE:
-            var_ff, var_rot = init_var_ff_and_rot_curvature(self.instance, self.options.optimFixedFF)
-        elif self.options.initMode == InitMode.SMOOTH:
-            # var_ff, var_rot = init_var_ff_and_rot_no_singus(self.instance)
-            var_ff, var_rot = init_var_ff_and_rot_full(self.instance, self.options.optimFixedFF, self.verbose_options.logger_verbose)
-        elif self.options.initMode == InitMode.RANDOM:
-            var_ff, var_rot = init_var_ff_and_rot_random(self.instance, var_edges)
-        else: # init mode is zero
-            var_ff = init_var_ff_on_feat(self.instance, var_edges) 
-            var_rot = init_var_rotations(self.instance, var_ff)
+        if self.options.free_boundary:
+            var_ff,var_rot = init_var_ff_and_rot_free_bnd(self.instance)
+        else:
+            if self.options.initMode == InitMode.CURVATURE:
+                var_ff, var_rot = init_var_ff_and_rot_curvature(self.instance, self.options.optimFixedFF)
+            elif self.options.initMode == InitMode.SMOOTH:
+                var_ff, var_rot = init_var_ff_and_rot_full(self.instance, self.options.optimFixedFF, self.verbose_options.logger_verbose)
+            elif self.options.initMode == InitMode.RANDOM:
+                var_ff, var_rot = init_var_ff_and_rot_random(self.instance, var_edges)
+            else: # init mode is zero
+                var_ff = init_var_ff_on_feat(self.instance, var_edges) 
+                var_rot = init_var_rotations(self.instance, var_ff)
         
         self.instance.var = np.concatenate((var_edges, var_ff, var_rot))
         self.instance.init_var = np.copy(self.instance.var)
@@ -615,7 +531,6 @@ class Initializer(Worker):
         initialize_rotFF_indices(self.instance)
         init_edge_indices(self.instance)
         initialize_quad_indices_and_ref_dets(self.instance, var_edges)
-        init_soft_features(self.instance)
         
         if self.options.distortion == Distortion.ARAP:
             self.log("Compute initial jacobians for distortion")

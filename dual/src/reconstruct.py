@@ -11,7 +11,7 @@ from .common import *
 from .instance import Instance
 from .worker import *
 
-##### Utility functions #####
+########## Utility functions ##########
 
 def split_singular_triangles(I : Instance):
     """Combinatorial operations on the mesh to place additionnal points inside singular triangles"""
@@ -48,162 +48,6 @@ def split_singular_triangles(I : Instance):
     I.work_mesh.connectivity.clear()
     I.work_mesh.half_edges.clear()
     return I
-
-def replace_singularities_conformal_and_auth(I : Instance) -> int:
-    """Replacing singularities minimizing a compromise between a conformal distortion ||J||^2 / det J and area distortion det J + 1/ det J
-
-    Returns:
-        int: number of singularities for which replacement has failed
-    """
-    raise NotImplementedError
-    a = 0.5 # weight balance between the two terms
-    n_singus_fail = 0
-    for singuTri in I.singular_faces:
-        try:
-            S,A,B,C = I.singu_faces_to_4pts[singuTri]
-            pA,pB,pC = (I.mesh.vertices[_u] for _u in (A,B,C))
-            X = M.Vec.normalized(pB-pA)
-            Y = M.Vec.normalized(pC-pA)
-            Z = geom.cross(X,Y)
-            mat = np.zeros((2,2))
-            rhs = M.Vec.zeros(2)
-            for ref in (A,B,C):
-                T, iref, iS = I.mesh.half_edges.adj(ref,S)
-                inxt = 3-iref-iS
-                nxt = I.mesh.faces[T][inxt]
-                uv_ref, uv_nxt, uv_s = (M.Vec(I.UVs[(T,_i)].x, I.UVs[(T,_i)].y) for _i in (iref,inxt,iS))
-
-                # in parametric domain
-                UV = np.array([uv_nxt - uv_ref, uv_s - uv_ref])
-                det_uv = np.linalg.det(UV)
-                G = np.linalg.inv(UV.T @ UV)
-
-                # in real domain (basis of triangle)
-                Pref = I.mesh.vertices[ref]
-                Pref = M.Vec(X.dot(Pref), Y.dot(Pref))
-                Pnxt = I.mesh.vertices[nxt]
-                Pnxt = M.Vec(X.dot(Pnxt), Y.dot(Pnxt))
-                P = Pnxt-Pref
-                U = np.array([[ P.y*P.y, -P.x*P.y   ], [-P.x*P.y, P.x*P.x ]])
-                mat_ref = a*det_uv*G + (1-a)/det_uv * U
-                mat += mat_ref
-                rhs += mat_ref.dot(Pref)
-
-            pS = np.linalg.solve(mat, rhs)
-            # change of basis
-            basisT = np.array((X,Y,Z))
-            basisT = np.linalg.inv(basisT)
-            I.mesh.vertices[S] = basisT.dot( M.Vec(pS.x, pS.y, Z.dot((pA+pB+pC)/3)))
-        except np.linalg.LinAlgError as e:
-            n_singus_fail += 1
-
-    return n_singus_fail
-
-def replace_singularities_ARAP_Jac(I : Instance):
-    """Replacing singularities minimizing the ARAP energy, ie the three jacobian of adjacent triangles of a singularity should be isometries
-
-    Returns:
-        int: number of singularities for which replacement has failed
-    """
-
-    n_singus_fail = 0
-    for singuTri in I.singular_faces:
-        try:
-            # Get coordinates in x,y space
-            S,A,B,C = I.singu_faces_to_4pts[singuTri]
-
-            pA,pB,pC,pS = (I.mesh.vertices[_u] for _u in (A,B,C,S))
-            X,Y,Z = geom.face_basis(pA,pB,pC)
-            pA, pB, pC, pS = (M.Vec( X.dot(_p), Y.dot(_p) ) for _p in (pA,pB,pC,pS)) # project in basis of the triangle
-
-            # Get coordinates in u,v space
-            T1, iA1, iS1 = I.mesh.half_edges.adj(A,S) # T1 = ACS
-            iC1 = 3 - iA1 - iS1
-            cnr = I.mesh.connectivity.face_to_first_corner(T1)
-            uA1, uC1, uS1 = ( M.Vec(I.UVs[cnr + _i].x, I.UVs[cnr + _i].y) for _i in (iA1,iC1,iS1))
-            area1 = geom.triangle_area_2D(uA1,uC1,uS1)
-
-            T2, iB2, iS2 = I.mesh.half_edges.adj(B,S) # T2 = ABS
-            iA2 = 3 - iB2 - iS2
-            cnr = I.mesh.connectivity.face_to_first_corner(T2)
-            uA2, uB2, uS2 = ( M.Vec(I.UVs[cnr + _i].x, I.UVs[cnr + _i].y) for _i in (iA2,iB2,iS2))
-            area2 = geom.triangle_area_2D(uA2,uB2,uS2)
-
-            T3, iC3, iS3 = I.mesh.half_edges.adj(C,S) # T3 = BCS
-            iB3 = 3 - iC3 - iS3
-            cnr = I.mesh.connectivity.face_to_first_corner(T3)
-            uB3, uC3, uS3 = ( M.Vec(I.UVs[cnr + _i].x, I.UVs[cnr + _i].y) for _i in (iB3,iC3,iS3))
-            area3 = geom.triangle_area_2D(uB3,uC3,uS3)
-
-            # build system
-            J1 = np.array([uC1 - uS1, uA1 - uS1]).T
-            J2 = np.array([uA2 - uS2, uB2 - uS2]).T
-            J3 = np.array([uB3 - uS3, uC3 - uS3]).T
-            J1,J2,J3 = (np.linalg.inv(_J) for _J in (J1,J2,J3))
-
-            R1,R2,R3 = np.eye(2), np.eye(2), np.eye(2)
-            systm = np.zeros((12,2))
-
-            for iter in range(100): # alternate solve for rotations and solve for S
-                # First solve for rotations
-                S1 = np.array([pC-pS, pA-pS]).T @ J1
-                U,L,V = np.linalg.svd(S1)
-                R1 = (V @ U).T
-                if np.linalg.det(R1) < 0:
-                    U[:,1] *= -1
-                    R1 = (V @ U).T
-
-                S2 = np.array([pA-pS, pB-pS]).T @ J2
-                U,L,V = np.linalg.svd(S2)
-                R2 = (V @ U).T
-                if np.linalg.det(R2) < 0:
-                    U[:,1] *= -1
-                    R2 = (V @ U).T
-
-                S3 = np.array([pB-pS, pC-pS]).T @ J3
-                U,L,V = np.linalg.svd(S3)
-                R3 = (V @ U).T
-                if np.linalg.det(R3) < 0:
-                    U[:,1] *= -1
-                    R3 = (V @ U).T
-            
-                # now solve for S
-                rhs = np.zeros(12)
-                for k,(ar, J,R, P1,P2) in enumerate([(area1, J1,R1, pC, pA), (area2, J2,R2, pA, pB), (area3, J3,R3, pB, pC)]):
-                    systm[4*k+0,0] = (J[0,0] + J[1,0])
-                    systm[4*k+1,0] = (J[0,1] + J[1,1])
-                    systm[4*k+2,1] = (J[0,0] + J[1,0])
-                    systm[4*k+3,1] = (J[0,1] + J[1,1])
-                    r = np.array([P1,P2]).T @ J - R
-                    rhs[4*k+0] = r[0,0]
-                    rhs[4*k+1] = r[0,1]
-                    rhs[4*k+2] = r[1,0]
-                    rhs[4*k+3] = r[1,1]
-                newS = np.linalg.lstsq(systm, rhs, rcond=None)[0]
-
-                if M.geometry.distance(newS,pS)<1e-6:
-                    if geom.det_2x2(pA-pS,pB-pS)<0 or geom.det_2x2(pB-pS,pC-pS)<0 or geom.det_2x2(pC-pS,pA-pS)<0 :
-                        pS = (pA+pB+pC)/3
-                        n_singus_fail += 1
-                        print(pA,pB,pC)
-                        print(uA1,uC1,uS1)
-                        print(uA2,uB2,uS2)
-                        print(uB3,uC3,uS3)
-                        print()
-                    break
-                pS = M.Vec(newS)
-
-
-            basisT = np.array((X,Y,Z))
-            basisT = np.linalg.inv(basisT)
-            bary = sum(I.mesh.vertices[_u] for _u in (A,B,C))/3
-            I.mesh.vertices[S] = basisT.dot( M.Vec(pS.x, pS.y, Z.dot(bary)))
-
-
-        except Exception as e:
-            # print(e)
-            n_singus_fail += 1
-    return n_singus_fail
 
 def replace_singularities_barycenter(I : Instance):
     """Replacing singularities minimizing the ARAP energy, ie the three jacobian of adjacent triangles of a singularity should be isometries
@@ -267,7 +111,8 @@ def create_optimal_seams(I : Instance, features : bool, verbose) -> SingularityC
     return cutter
 
 def delimit_feature_regions(I : Instance, cutter ) -> M.utils.UnionFind:
-    """When dealing with feature edges, the tree traversal for reconstruction needs to be modified. 
+    """
+    When dealing with feature edges, the tree traversal for reconstruction needs to be modified. 
     Features delimit regions inside the mesh, that should only be connected by one edge.
     If such a region is reconstructed from two or more edges, new seams appear due to period jumps along existing seams.
     Taking this into account is a pain, so we instead flag everything for the traversal to avoid such cases.
@@ -623,16 +468,13 @@ class ParamConstructor(Worker):
         I.UVs = rescale_uvs(I)
         
         self.log("Reposition singularities ")
-        # n_singus_fail = 0 
-        # n_singus_fail = replace_singularities_conformal_and_auth(I)
         n_singus_fail = replace_singularities_barycenter(I)
-        # n_singus_fail = replace_singularities_ARAP_Jac(I)
+        # n_singus_fail = 0 
         
         if n_singus_fail>0:
             self.log(f"/!\ {n_singus_fail} singularities failed to be positionned inside their triangle")
         else:
             self.log("All singularities have been positionned")
-
 
         self.reconstructed = True
         self.instance.cut_graph = self.cutter.cut_graph

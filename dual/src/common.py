@@ -1,17 +1,91 @@
 import cmath
-from cmath import polar, rect, phase
+from cmath import polar, rect
 from math import log, pi, sqrt, cos, sin, atan, atan2
 import numpy as np
 from numba import jit, prange
 import csv
-
+from enum import Enum
+from dataclasses import dataclass
+import numpy as np
 import mouette as M
-from mouette import geometry as geom
+
+########## Distortion ##########
+
+class Distortion(Enum):
+    """Description of the different energies used a a distortion in the optimization.
+    """
+    NONE = 0
+    ARAP = 1
+    LSCM = 2
+    AREA = 3
+
+    @staticmethod
+    def from_string(s :str):
+        if "lscm" in s.lower() or "conf" in s.lower():
+            return Distortion.LSCM
+        if "arap" in s.lower() or "iso" in s.lower():
+            return Distortion.ARAP
+        if "area" in s.lower() or "scale" in s.lower():
+            return Distortion.AREA
+        return Distortion.NONE
+
+##### Init Mode #####
+
+class InitMode(Enum):
+    """
+    Initialization mode
+    """
+    ZERO = 0
+    SMOOTH = 1
+    CURVATURE = 2
+    RANDOM = 3
+
+    @staticmethod
+    def from_string(s :str):
+        if "zero" in s.lower():
+            return InitMode.ZERO
+        if "smooth" in s.lower():
+            return InitMode.SMOOTH
+        if "curv" in s.lower():
+            return InitMode.CURVATURE
+        if "random" in s.lower():
+            return InitMode.RANDOM
+        raise Exception(f"InitMode {s} not recognized")
+
+########## Default running options ##########
+
+@dataclass
+class VerboseOptions:
+    output_dir : str = ""
+    logger_verbose : bool = True
+    qp_solver_verbose : bool = False
+    optim_verbose : bool = True
+    log_freq : int = 0
+    tqdm : bool = True
+
+@dataclass
+class Options:
+    distortion : Distortion = Distortion.NONE
+    features : bool = False
+    initMode : InitMode = InitMode.ZERO
+    optimFixedFF : bool = False
+    n_iter_max : int = 1000
+    free_boundary : bool = False
+    dist_schedule : list = None
+
+    def set_schedule(self,sch : list = None):
+        if sch is None:
+            if self.distortion == Distortion.NONE:
+                self.dist_schedule = []
+            elif self.distortion == Distortion.LSCM:
+                self.dist_schedule = [x for x in np.logspace(2, -2, 5)]
+            elif self.distortion in [Distortion.ARAP, Distortion.AREA]:
+                self.dist_schedule = [x for x in np.logspace(2, -4, 7)]
+        else:
+            self.dist_schedule = sch
 
 
-"""
-Miscalenous utility functions
-"""
+########## Miscalenous utility functions ##########
 
 def fourth_roots(c : complex, normalize=True):
     r,t = polar(c)
@@ -61,16 +135,6 @@ def pows4(x):
     x4 = x2*x2
     return x2,x3,x4
 
-# @jit(nopython=True, fastmath=True)
-# def barrier_neg(x,t):
-#     if x>t: return 0
-#     return (x-t)**2
-
-# @jit(nopython=True, fastmath=True)
-# def barrier_neg_prime(x, t):
-#     if x>t : return 0
-#     return 2*(x-t)
-
 @jit(nopython=True, fastmath=True)
 def barrier_neg(x,t):
     if x<= 0 : return 1000000000
@@ -82,30 +146,6 @@ def barrier_neg_prime(x, t):
     if x<0 : return 1000000000
     if x>t : return 0
     return 2*log(x/t)/x
-
-@jit(nopython=True, fastmath=True)
-def barrier_pos(x,t):
-    if x<t : return 0
-    if x>=2*t: return 1000000000
-    return 2/(x-2*t) * log(2 - x/t)
-
-@jit(nopython=True, fastmath=True)
-def barrier_pos_prime(x, t):
-    if x<t : return 0
-    if x>=2*t: return 1000000000
-    return log(2 - x/t)**2
-
-@jit(nopython=True, fastmath=True)
-def barrier_zero(x,t):
-    if x>=t : return (x-t)**2
-    if x<=-t : return (x+t)**2
-    return 0
-
-@jit(nopython=True, fastmath=True)
-def barrier_zero_prime(x, t):
-    if x>=t : return 2*(x-t)
-    if x<=-t : return  2*(x+t)
-    return 0.
 
 def crot(w):
     # exp(iw)
@@ -137,27 +177,6 @@ def principal_angle(a):
     if b>pi:
         b-=2*pi
     return b
-
-def solve_quadratic(A : float ,B : float, C : float):
-    """Solves Ax² + Bx + C = 0 for real-valued roots
-
-    Parameters:
-        A (float): Coefficient
-        B (float): Coefficient
-        C (float): Coefficient
-    """
-    if A==0: # linear case
-        if B == 0:
-            return []
-        return [-C/B]
-    delta = B*B-4*A*C
-    if delta<0:
-        return []
-    if abs(delta)<1e-14: # delta = 0
-        return [-B/(2*A)]
-    else:
-        delta = sqrt(delta)
-        return [ (-B + delta)/(2*A), (-B - delta)/(2*A)]
 
 @jit(nopython=True)
 def other_end(xa,ya,w):

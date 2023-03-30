@@ -1,5 +1,4 @@
-from src.common import export_dict_as_csv
-from src.worker import Distortion, InitMode, Options, VerboseOptions
+from src.common import export_dict_as_csv, Distortion, InitMode, Options, VerboseOptions
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
@@ -29,17 +28,19 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--n-iter-max", type=int, default=1000, \
         help="maximum number of iterations in optimization")
 
-    parser.add_argument("-s", "--snapshot", type=int, default=0, \
-        help="snapshot frequency during optimization")
-
-    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "arap", "shear",  "scale"], default="none", \
+    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "conf", "arap", "iso", "area", "scale"], default="none", \
         help="choice of distortion energy")
+
+    parser.add_argument("-fbnd", "--free-boundary", action="store_true", help="Free boundary - No cones mode")
 
     parser.add_argument("-init-mode", "--init-mode", type=str, choices=["zero", "smooth", "curv", "random"], default="zero", \
         help="Initialization mode for frame field and rotations")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
         help="Runs the optimization with a fixed pre-computed frame field.")
+
+    parser.add_argument("-order", "--order", type=int, default=4,\
+        help="order of the frame field")
 
     parser.add_argument("-feat", "--detect-features", action="store_true", \
         help="enables feature detection and alignment")
@@ -48,29 +49,26 @@ if __name__ == "__main__":
         help="disables tqdm progress bar")
 
     parser.add_argument("-silent", "--silent", action="store_true",\
-        help="disables verbose")
-
-    parser.add_argument("-order", "--order", type=int, default=4,\
-        help="order of the frame field")
+        help="disables output in terminal")
 
     parser.add_argument("-debug-output", "--debug-output", action="store_true",
         help="Debug output. This options outputs various meshes on top of the standard .obj output")
 
     parser.add_argument("-visu-output", "--visu-output", action="store_true",
-        help="Visualization output. This options outputs singularities, seams and features as surface meshes for rendering and visualization.")
+        help="Visualization output. This options outputs singularities, seams and features as .obj files for rendering and visualization.")
 
     args = parser.parse_args()
 
     if len(args.output_name)==0:
         args.output_name = M.utils.get_filename(args.input_mesh)
     
-    ###### Load data ###### 
+    ########### Load data ###########
     mesh = M.mesh.load(args.input_mesh)
     FOLDER = os.path.join("output", args.output_name)
     MAIN_OBJ_OUTPUT = f"output/{args.output_name}/{args.output_name}.obj"
     os.makedirs(FOLDER, exist_ok=True)
 
-    ###### Initialization ###### 
+    ########### Initialization ###########
     START_TIME = time()
 
     verbose = VerboseOptions(
@@ -79,7 +77,6 @@ if __name__ == "__main__":
         qp_solver_verbose=False,
         optim_verbose= not args.silent,
         tqdm= not args.no_tqdm,
-        snapshot_freq=args.snapshot,
         log_freq=1
     )
 
@@ -89,7 +86,8 @@ if __name__ == "__main__":
         features = args.detect_features,
         initMode = init_mode,
         optimFixedFF = args.optim_fixed_ff,
-        n_iter_max = args.n_iter_max
+        n_iter_max = args.n_iter_max,
+        free_boundary= args.free_boundary
     )
     options.set_schedule() # default schedule depending on distortion
 
@@ -97,23 +95,23 @@ if __name__ == "__main__":
         print(options)
 
     instance = Instance(mesh)
-    instance.order = args.order
+    instance.order = args.order if not args.free_boundary else 1
     init = Initializer(instance, options=options, verbose_options=verbose)
     init.initialize()
     reconstructor = ParamConstructor(instance, options=options, verbose_options=verbose)
 
     if args.debug_output:
         init_ff = reconstructor.export_frame_field()
-        M.mesh.save(init_ff, os.path.join(FOLDER, "framefield_init.mesh")) # save as .mesh file
+        M.mesh.save(init_ff, os.path.join(FOLDER, "framefield_init.mesh"))
 
         feature_graph = reconstructor.export_feature_graph()
         M.mesh.save(feature_graph, os.path.join(FOLDER,"features.mesh"))
 
-    ##### Optimization #####
+    ########### Optimization ###########
     optim = Optimizer(instance, options=options, verbose_options=verbose)
     final_energy = optim.optimize()
 
-    ##### Reconstruction and export #####
+    ########### Reconstruction and export ###########
     reconstructor.construct_param()
     write_output_obj(instance, MAIN_OBJ_OUTPUT)
 
@@ -129,8 +127,7 @@ if __name__ == "__main__":
 
     if not args.silent:
         print("Report:\n", report)
-        print("Singularities (total):", len(instance.singular_vertices))
-        print("Singularities (no feature cones):", len([ x for x in instance.singular_vertices if instance.singular_vertices[x] != 0]))
+        print("Number of singularities:", len(instance.singular_vertices))
 
     if args.debug_output:
         # additionnal outputs

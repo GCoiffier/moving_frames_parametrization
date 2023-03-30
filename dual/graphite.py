@@ -1,16 +1,20 @@
 import os
 
 def generate_graphite_lua(mesh_name):
-    folder = os.getcwd()
-    folder = os.path.join(folder, f"output/{mesh_name}")
-    text = "\
+	"""
+	Generates a lua script for graphite to read the debug output of the program
+	"""
+
+	folder = os.getcwd()
+	folder = os.path.join(folder, f"output/{mesh_name}")
+	text = "\
 -- Lua (Keep this comment, this is an indication for editor's 'run' command) \n\
 \n\
 scene_graph.clear() \n\
 main.camera().set_auto_focus(true)\n"
 
     # Initial frame field
-    text+=f"\
+	text+=f"\
 ff = scene_graph.load_object(\"{folder}/framefield_init.mesh\")\n\
 if (ff ~=nil)\n\
 then\n\
@@ -20,7 +24,7 @@ then\n\
 end\n\n"
 
     # Final frame field
-    text+=f"\
+	text+=f"\
 ff = scene_graph.load_object(\"{folder}/framefield_final.mesh\")\n\
 if (ff ~=nil)\n\
 then\n\
@@ -30,7 +34,7 @@ then\n\
 end\n\n"
 
 # Flat Param
-    text+=f"\
+	text+=f"\
 flat = scene_graph.load_object(\"{folder}/param_flat.geogram_ascii\")\n\
 if (flat ~= nil)\n\
 then \n\
@@ -39,7 +43,7 @@ then \n\
 end\n"
 
     # Mesh with texture
-    text+=f"\
+	text+=f"\
 out = scene_graph.load_object(\"{folder}/{mesh_name}.obj\")\n\
 if (out ~= nil)\n\
 then\n\
@@ -52,7 +56,7 @@ then\n\
 end\n\n"
     
     # Cuts as red edges
-    text+=f"\
+	text+=f"\
 cut = scene_graph.load_object(\"{folder}/seams.mesh\")\n\
 if (cut ~=nil)\n\
 then\n\
@@ -63,7 +67,7 @@ then\n\
 end\n\n"
 
     # Seams as red edges
-    text+=f"\
+	text+=f"\
 feat = scene_graph.load_object(\"{folder}/features.mesh\")\n\
 if (feat ~=nil)\n\
 then\n\
@@ -74,7 +78,7 @@ then\n\
 end\n\n"
 
     # Singularity point cloud
-    text+=f"\
+	text+=f"\
 singu = scene_graph.load_object(\"{folder}/singularities.geogram_ascii\")\n\
 if (singu ~=nil)\n\
 then\n\
@@ -86,5 +90,5 @@ then\n\
 	singu.shader.attribute_max = 2\n\
 end\n\n"
 
-    with open(f"output/{mesh_name}/show_in_graphite.lua", 'w') as f:
-        f.write(text)
+	with open(f"output/{mesh_name}/show_in_graphite.lua", 'w') as f:
+		f.write(text)

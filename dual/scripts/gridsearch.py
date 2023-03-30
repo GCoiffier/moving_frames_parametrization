@@ -1,3 +1,8 @@
+"""
+Gridsearch script for the parameter lambda_f (balance between (E) and (F) i.e. optimizer.FF_weight/optimizer.edge_weight)
+Outputs results for a model using a range of values for this parameter
+"""
+
 import os
 import csv
 import argparse
@@ -5,8 +10,7 @@ import numpy as np
 from time import time
 
 import mouette as M
-from src.common import export_dict_as_csv
-from src.worker import Distortion, Options, VerboseOptions, InitMode
+from src.common import export_dict_as_csv, Distortion, Options, VerboseOptions, InitMode
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer, OptimHyperParameters
@@ -26,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output-name", type=str, default="", \
         help="Name of the output file. Will be stored in a folder named '<outname>' as '<outname>.obj'")
     
-    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "shear", "iso", "id"], default="none", \
+    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "arap", "area"], default="none", \
         help="choice of distortion energy")
    
     parser.add_argument("-feat", "--detect-features", action="store_true", \
@@ -54,7 +58,6 @@ if __name__ == "__main__":
         qp_solver_verbose=False,
         optim_verbose=False,
         tqdm=False,
-        snapshot_freq=0,
         log_freq=1
     )
 

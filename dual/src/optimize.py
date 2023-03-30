@@ -22,7 +22,7 @@ class OptimHyperParameters:
     ENERGY_MIN : float = 1e-7 # stopping criterion on the energy value
     MIN_DELTA_E : float = 1e-4 # stopping criterion on the energy difference value
     MIN_STEP_NORM : float = 1e-4  # stopping criterion on the step vector (x_n+1 - x_n) norm
-    MIN_GRAD_NORM : float = 1e-4  # stopping criterion on projected gradient norm
+    MIN_GRAD_NORM : float = 1e-5  # stopping criterion on projected gradient norm
     MU_MAX : float = 1e8 # stopping criterion on mu value
     MU_MIN : float = 1e-8
     alpha : float = 0.5 # if iteration is a success, mu = alpha * mu
@@ -45,14 +45,12 @@ class Optimizer(Worker):
         self.HP = optim_hp # hyperparameters
 
         self.dist_weight : float = 1.
+        self.dist_area_balance : float = 0.1
+
         self.edge_weight : float = 1.
-        self.soft_feat_weight : float =  0.1
-        self.soft_feat_ff_weight : float = 0.1
         self.FF_weight : float = 10.
         self.singu_det_threshold = 0.5 # minimal ratio value for the singularity barrier term 
         self.orient_det_threshold = 0.5 # minimal ratio value for the orientation barrier term
-
-        self.n_snap = 0
 
     def compute_constraints(self):
         I = self.instance
@@ -61,81 +59,95 @@ class Optimizer(Worker):
         self.cstRHS, self.cstRHS_u = [], []
         irow = 0
 
-        ### frame field
-        ncstr_ff = 0
-        if not self.options.optimFixedFF:
-            ncstr_ff = 2*len(I.feat.feature_vertices) # for feature frame field constraints
+        if self.options.free_boundary:
+            # lock only one frame
+            ncstr_ff = 2
+            rows += [irow, irow+1]
+            cols += [I.var_sep_ff, I.var_sep_ff + 1]
+            coeffs += [1, 1]
+            irow+=2
+            # other constraints are ignored
+            ncstr_fe = 0
+            ncstr_ring_fe = 0
+
+        else:
+
+            ### Lock frames on features and boundary
+            ncstr_ff = 0
+            if not self.options.optimFixedFF:
+                # if optim fixed ff, frames will not change so constraints are useless
+                ncstr_ff = 2*len(I.feat.feature_vertices)
+                for v in I.feat.feature_vertices:
+                    rows += [irow, irow+1]
+                    cols += [I.var_sep_ff + 2*v, I.var_sep_ff + 2*v+1]
+                    coeffs += [1, 1]
+                    irow+=2
+                self.cstRHS += [0]*ncstr_ff
+                self.cstRHS_u += [0]*ncstr_ff
+
+            ### Charts along features should align with feature normal
+            ncstr_fe = 0
+            ncstr_fe = sum([ len(I.feat.local_feat_edges[v]) for v in I.feat.feature_vertices]) # for border and feature curves alignment with normal
+            self.cstRHS += [0]*ncstr_fe
+            self.cstRHS_u += [0]*ncstr_fe
             for v in I.feat.feature_vertices:
-                rows += [irow, irow+1]
-                cols += [I.var_sep_ff + 2*v, I.var_sep_ff + 2*v+1]
-                coeffs += [1, 1]
-                irow+=2
-            self.cstRHS += [0]*ncstr_ff
-            self.cstRHS_u += [0]*ncstr_ff
+                for ie in I.feat.local_feat_edges[v]:
+                    e = I.work_mesh.connectivity.vertex_to_edge(v)[ie]
+                    direct = I.work_mesh.edges[e][0]==v
+                    nmid = 4*e if direct else 4*e + 2
+                    mid = M.Vec(I.var[nmid], I.var[nmid + 1])
+                    n = M.Vec.normalized(M.Vec(-mid.y, mid.x))
+                    # dot(e, n) = 0
+                    rows += [irow, irow]
+                    cols += [nmid, nmid+1]
+                    coeffs += [n.x, n.y]
+                    irow += 1
 
-        ### feature vertices -> align with normal
-        ncstr_fe = 0
-        ncstr_fe = sum([ len(I.feat.local_feat_edges[v]) for v in I.feat.feature_vertices]) # for border and feature curves alignment with normal
-        self.cstRHS += [0]*ncstr_fe
-        self.cstRHS_u += [0]*ncstr_fe
-        for v in I.feat.feature_vertices:
-            for ie in I.feat.local_feat_edges[v]:
-                e = I.work_mesh.connectivity.vertex_to_edge(v)[ie]
-                direct = I.work_mesh.edges[e][0]==v
-                nmid = 4*e if direct else 4*e + 2
-                mid = M.Vec(I.var[nmid], I.var[nmid + 1])
-                n = M.Vec.normalized(M.Vec(-mid.y, mid.x))
-                # dot(e, n) = 0
-                rows += [irow, irow]
-                cols += [nmid, nmid+1]
-                coeffs += [n.x, n.y]
-                irow += 1
-
-        ### split rings over feature edges
-        ncstr_ring_fe = 0 # for rings split by feature edges
-        for v,split_v in I.feat.cut_vertices.items():
-            if len(split_v)<2 : continue
-            if I.mesh.is_vertex_on_border(v):
-                ncstr_ring_fe += 2*( len(split_v) - 1)
-            else:
-                ncstr_ring_fe += 2*len(split_v)
-        self.cstRHS += [0]*ncstr_ring_fe
-        self.cstRHS_u += [0]*ncstr_ring_fe
+            ### split rings over feature edges
+            ncstr_ring_fe = 0 # for rings split by feature edges
+            for v,split_v in I.feat.cut_vertices.items():
+                if len(split_v)<2 : continue
+                if I.mesh.is_vertex_on_border(v):
+                    ncstr_ring_fe += 2*( len(split_v) - 1)
+                else:
+                    ncstr_ring_fe += 2*len(split_v)
+            self.cstRHS += [0]*ncstr_ring_fe
+            self.cstRHS_u += [0]*ncstr_ring_fe
+                    
+            for v,split_v in I.feat.cut_vertices.items():
+                if len(split_v)<2 : continue # no need to split (should not happen)
+                for a,b in M.utils.consecutive_pairs(split_v):
+                    # extract pair of edges
+                    va,vb = I.work_mesh.connectivity.vertex_to_vertex(a)[-1], I.work_mesh.connectivity.vertex_to_vertex(b)[0]
+                    iea, ieb = I.work_mesh.connectivity.edge_id(a,va), I.work_mesh.connectivity.edge_id(b,vb)
+                    iea = 4*iea if a<va else 4*iea+2
+                    ieb = 4*ieb if b<vb else 4*ieb+2
+                    Aab, Aba = -I.connection.transport(a,va), -I.connection.transport(b,vb)
+                    # ea * exp( - i A_ab) - eb * exp( - i A_ba ) = 0
+                    rows += [irow, irow, irow, irow]
+                    cols += [iea, iea+1, ieb, ieb+1]
+                    coeffs += [cos(Aab), -sin(Aab), -cos(Aba), sin(Aba) ]
+                    rows += [irow+1, irow+1, irow+1, irow+1]
+                    cols += [iea, iea+1, ieb, ieb+1]
+                    coeffs += [ sin(Aab), cos(Aab), -sin(Aba), -cos(Aba) ]
+                    irow += 2
                 
-        for v,split_v in I.feat.cut_vertices.items():
-            if len(split_v)<2 : continue # no need to split (should not happen)
-            for a,b in M.utils.consecutive_pairs(split_v):
-                # extract pair of edges
-                va,vb = I.work_mesh.connectivity.vertex_to_vertex(a)[-1], I.work_mesh.connectivity.vertex_to_vertex(b)[0]
-                iea, ieb = I.work_mesh.connectivity.edge_id(a,va), I.work_mesh.connectivity.edge_id(b,vb)
-                iea = 4*iea if a<va else 4*iea+2
-                ieb = 4*ieb if b<vb else 4*ieb+2
-                Aab, Aba = -I.parallel_transport[(a,va)], -I.parallel_transport[(b,vb)]
-                # ea * exp( - i A_ab) - eb * exp( - i A_ba ) = 0
-                rows += [irow, irow, irow, irow]
-                cols += [iea, iea+1, ieb, ieb+1]
-                coeffs += [cos(Aab), -sin(Aab), -cos(Aba), sin(Aba) ]
-                rows += [irow+1, irow+1, irow+1, irow+1]
-                cols += [iea, iea+1, ieb, ieb+1]
-                coeffs += [ sin(Aab), cos(Aab), -sin(Aba), -cos(Aba) ]
-                irow += 2
-            
-            if not I.mesh.is_vertex_on_border(v):
-                # for the last pair (closure of ring), we apply the defect:
-                # ea * exp( - i A_ab) = eb * exp( - i A_ba ) * exp( i * defect)
-                a,b = split_v[-1], split_v[0]
-                va,vb = I.work_mesh.connectivity.vertex_to_vertex(a)[-1], I.work_mesh.connectivity.vertex_to_vertex(b)[0]
-                iea, ieb = I.work_mesh.connectivity.edge_id(a,va), I.work_mesh.connectivity.edge_id(b,vb)
-                iea = 4*iea if a<va else 4*iea+2
-                ieb = 4*ieb if b<vb else 4*ieb+2
-                Aab, Aba = -I.parallel_transport[(a,va)], -I.parallel_transport[(b,vb)] + 2*pi/self.instance.order*(self.instance.order-I.feat.corners_no_cuts[v])
-                rows += [irow, irow, irow, irow]
-                cols += [iea, iea+1, ieb, ieb+1]
-                coeffs += [ cos(Aab), -sin(Aab), -cos(Aba), sin(Aba)]
-                rows += [irow+1, irow+1, irow+1, irow+1]
-                cols += [iea, iea+1, ieb, ieb+1]
-                coeffs += [ sin(Aab), cos(Aab), -sin(Aba), -cos(Aba)]
-                irow += 2
+                if not I.mesh.is_vertex_on_border(v):
+                    # for the last pair (closure of ring), we apply the defect:
+                    # ea * exp( - i A_ab) = eb * exp( - i A_ba ) * exp( i * defect)
+                    a,b = split_v[-1], split_v[0]
+                    va,vb = I.work_mesh.connectivity.vertex_to_vertex(a)[-1], I.work_mesh.connectivity.vertex_to_vertex(b)[0]
+                    iea, ieb = I.work_mesh.connectivity.edge_id(a,va), I.work_mesh.connectivity.edge_id(b,vb)
+                    iea = 4*iea if a<va else 4*iea+2
+                    ieb = 4*ieb if b<vb else 4*ieb+2
+                    Aab, Aba = -I.connection.transport(a,va), -I.connection.transport(b,vb) + 2*pi/self.instance.order*(self.instance.order-I.feat.corners_no_cuts[v])
+                    rows += [irow, irow, irow, irow]
+                    cols += [iea, iea+1, ieb, ieb+1]
+                    coeffs += [ cos(Aab), -sin(Aab), -cos(Aba), sin(Aba)]
+                    rows += [irow+1, irow+1, irow+1, irow+1]
+                    cols += [iea, iea+1, ieb, ieb+1]
+                    coeffs += [ sin(Aab), cos(Aab), -sin(Aba), -cos(Aba)]
+                    irow += 2
 
         ### Finalize
         ncstr = ncstr_ff + ncstr_fe + ncstr_ring_fe
@@ -155,15 +167,17 @@ class Optimizer(Worker):
         else:
             F.append(self.edge_weight*constraint_edge_noJ1(X, I.edge_lengths, I.PT_array, n, m, I.var_sep_rot))
             F.append(self.edge_weight*constraint_edge_noJ2(X, I.edge_indices, I.edge_lengths, I.PT_array, n, m, I.var_sep_rot))
-            F.append(self.FF_weight*constraint_rotations_follow_ff_noJ(X, I.rotFF_indices, I.PT_array, n, I.order))
+
+            if self.options.free_boundary:
+                F.append(self.FF_weight*constraint_rotations_follow_ff_order1_noJ(X, I.rotFF_indices, I.PT_array, n))
+            else:
+                F.append(self.FF_weight*constraint_rotations_follow_ff_noJ(X, I.rotFF_indices, I.PT_array, n, I.order))
         
         # Barrier terms
-        F.append(barrier_det_full_noJ(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold))
-        # F.append(barrier_det_corner_noJ(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold))
-        
-        if I.soft_feat_indices is not None:
-            F.append(self.soft_feat_weight * soft_feat_noJ(X, I.soft_feat_indices, I.soft_feat_normals))
-            F.append(self.soft_feat_ff_weight * soft_feat_ff_noJ(X, I.soft_feat_indices_ff, I.soft_feat_ff))
+        if self.options.free_boundary:
+            F.append(barrier_det_corner_noJ(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold))
+        else:
+            F.append(barrier_det_full_noJ(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold))
 
         # Distortion energies
         if self.dist_weight>0:
@@ -172,13 +186,10 @@ class Optimizer(Worker):
 
             elif self.options.distortion == Distortion.ARAP:
                 F.append(self.dist_weight * distortion_isometric_noJ(X, I.quad_indices, I.dist_matrices))
-
-            elif self.options.distortion == Distortion.SHEAR:
-                F.append(self.dist_weight * distortion_shear_noJ(X, I.quad_indices, I.dist_matrices))
             
-            elif self.options.distortion == Distortion.SCALE:
+            elif self.options.distortion == Distortion.AREA:
                 F.append(self.dist_weight * distortion_det_noJ(X, I.quad_indices, I.ref_dets))
-
+                F.append(self.dist_weight * self.dist_area_balance * distortion_lscm_noJ(X, I.quad_indices, I.init_var))
         return F
 
     def energy(self, X=None, jac=True):
@@ -214,24 +225,22 @@ class Optimizer(Worker):
             names.append("E2")
             F,V,R,C = constraint_edge2(X, I.edge_indices, I.edge_lengths, I.PT_array, n,m, I.var_sep_rot)
             off = add_energy(off, self.edge_weight*F, self.edge_weight*V, R, C)
+
             names.append("rotFF")
-            F,V,R,C = constraint_rotations_follow_ff(X, I.rotFF_indices, I.PT_array, n, I.order)
+            if self.options.free_boundary:
+                F,V,R,C = constraint_rotations_follow_ff_order1(X, I.rotFF_indices, I.PT_array, n)
+            else:
+                F,V,R,C = constraint_rotations_follow_ff(X, I.rotFF_indices, I.PT_array, n, I.order)
             off = add_energy(off, self.FF_weight*F, self.FF_weight*V , R, C)
         
         # Barrier terms
         names.append("Det")
-        F,V,R,C = barrier_det_full(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold)
+        if self.options.free_boundary:
+            # If free boundary mode, singularities cannot appear so their position is not relevant to bound
+            F,V,R,C = barrier_det_corner(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold)
+        else:
+            F,V,R,C = barrier_det_full(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold)
         off = add_energy(off, F,V,R,C)
-        # F,V,R,C = barrier_det_corner(X, I.quad_indices, I.ref_dets, self.orient_det_threshold, self.singu_det_threshold)
-        # off = add_energy(off, F,V,R,C)
-        
-        if I.soft_feat_indices is not None:
-            names.append("Soft")
-            F,V,R,C = soft_feat(X, I.soft_feat_indices, I.soft_feat_normals)
-            off = add_energy(off, self.soft_feat_weight * F, self.soft_feat_weight * V, R, C)
-            names.append("SoftFF")
-            F,V,R,C = soft_feat_ff(X, I.soft_feat_indices_ff, I.soft_feat_ff)
-            off = add_energy(off, self.soft_feat_ff_weight * F, self.soft_feat_ff_weight * V, R, C)
 
         # Distortion energies
         if self.dist_weight>0:
@@ -243,19 +252,15 @@ class Optimizer(Worker):
                 names.append("Arap")
                 F,V,R,C = distortion_isometric(X, I.quad_indices, I.dist_matrices)
 
-            elif self.options.distortion == Distortion.SHEAR:
-                names.append("Shear")
-                F,V,R,C = distortion_shear(X, I.quad_indices, I.dist_matrices)
-
-            elif self.options.distortion == Distortion.SCALE:
+            elif self.options.distortion == Distortion.AREA:
                 names.append("Scale")
                 F,V,R,C = distortion_det(X, I.quad_indices, I.ref_dets)
                 off = add_energy(off, self.dist_weight*F, self.dist_weight*V, R, C)
 
-                names.append("LSCM")
+                names.append("Lscm")
                 F,V,R,C = distortion_lscm(X, I.quad_indices, I.init_var)
-                F *= 0.1
-                V *= 0.1
+                F *= self.dist_area_balance
+                V *= self.dist_area_balance
 
             off = add_energy(off, self.dist_weight*F, self.dist_weight*V, R, C)
 
@@ -271,7 +276,7 @@ class Optimizer(Worker):
         if self.stop_criterion_instance is None:
             self.stop_criterion_instance = OSQP()
             self.stop_criterion_instance.setup(
-                sp.eye(n,format=("csc")), q=-2*G, A = self.cstMat, l = self.cstRHS, u = self.cstRHS_u,
+                sp.eye(n,format=("csc")), q=-2*G, A = self.cstMat, l = self.cstRHS, u = self.cstRHS,
                 verbose=self.verbose_options.qp_solver_verbose) #, linsys_solver='mkl pardiso')
         else:
             self.stop_criterion_instance.update(q=-2*G)
@@ -291,8 +296,6 @@ class Optimizer(Worker):
 
     def LevenbergMarquardt(self, n_iter_max):
         if n_iter_max <= 0 : return
-
-        # energy_attr = self.instance.work_mesh.edges.get_attribute("energy")
 
         mu = 1.
         mu_avg = mu
@@ -314,9 +317,7 @@ class Optimizer(Worker):
                 if update: # energy only changes if we performed a step last iteration
                     names, f, Jx = self.energy()
                     fx = np.concatenate(f)
-                    # for e in self.instance.work_mesh.id_edges:
-                    #     energy_attr[e] = abs(fx[2*e]) + abs(fx[2*e+1])
-
+                    
                     Jt = Jx.transpose()
                     JtJ = Jt.dot(Jx)
                     q = Jt.dot(fx) # gradient
@@ -340,7 +341,6 @@ class Optimizer(Worker):
                     return self.end_optimization(Ex, "mu > mu_max")
                     
                 gamma = mu * np.sqrt(2*Ex)
-                #gamma = 2 * mu * Ex
                 osqp_instance = OSQP()
                 osqp_instance.setup(JtJ + gamma*Id, q=q, A=self.cstMat, l=self.cstRHS, u=self.cstRHS,
                     verbose=self.verbose_options.qp_solver_verbose,
@@ -356,24 +356,18 @@ class Optimizer(Worker):
                     fxs = np.concatenate(fxs)
                     Exs = np.dot(fxs,fxs)/2
 
-                #rho = (Ex - Exs)/(Ex - ms)
-                #update = (rho >= eta) # whether to make a step (True) or increase mu (False)
                 update = (s is not None) and (Exs <= ms)  # whether to make a step (True) or increase mu (False)
                 if update:
                     RelDeltaE = abs(Exs-Ex)/Ex
                     if RelDeltaE < self.HP.MIN_DELTA_E : #and it>10:
                         return self.end_optimization(Ex, "Relative progression of energy < ΔE_min")
                     self.instance.var += s
-                    #self.instance.normalize_ff()
                     step_norm = geom.norm(s)
                     if step_norm < self.HP.MIN_STEP_NORM : #and it>10:
                         return self.end_optimization(Ex, "Step norm < min_step_norm")
                     mu, mu_avg = max(self.HP.MU_MIN, self.HP.alpha*mu_avg), mu
                 else:
                     mu = self.HP.beta*mu
-
-                if self.verbose_options.snapshot_freq!=0 and ( it%self.verbose_options.snapshot_freq==0 or it < 10):
-                    self.make_snapshot()
 
                 if self.verbose_options.optim_verbose and self.verbose_options.log_freq>0 and it%self.verbose_options.log_freq==0:
                     energies = [np.dot(_f,_f)/2 for _f in f]
@@ -396,47 +390,11 @@ class Optimizer(Worker):
                     
         except KeyboardInterrupt:
             self.log("Manual interruption")
-        except ValueError:
-            self.log("Manual interruption")
+        # except ValueError:
+        #     self.log("Manual interruption")
         return self.end_optimization(Ex, "max iteration reached")
 
-    def make_snapshot(self):
-        I = self.instance
-        snap_dir = os.path.join(self.verbose_options.output_dir, "snapshot")
-        os.makedirs(snap_dir, exist_ok=True)
-        ff = self.instance.export_frame_field()
-        M.mesh.save(ff, f"{snap_dir}/FF_{self.n_snap}.geogram_ascii")
-
-        out = M.mesh.copy(I.work_mesh)
-        defect = out.faces.create_attribute("defect", float)
-        for iF,(A,B,C) in enumerate(I.work_mesh.faces):
-            angle = 0
-            for u,v in [(A,B), (B,C), (C,A)]:
-                e = I.work_mesh.connectivity.edge_id(u,v)
-                w = I.get_rotation(e)
-                angle += w if u>v else -w
-            angle += I.curvature[iF] # /!\ very important to counteract effect of natural curvature
-            defect[iF] = angle
-
-        # det = out.faces.create_attribute("det", float)
-        # for f in I.mesh.id_faces:
-        #     a,b,c,d = I.var[4*f:4*f+4]
-        #     det[f] = a*d-b*c
-
-        w = out.edges.create_attribute("w", float)
-        for e in I.work_mesh.id_edges:
-            w[e] = 2*atan(I.var[I.var_sep_rot+e])
-
-        M.mesh.save(out, f"{snap_dir}/snap_{self.n_snap}.geogram_ascii")
-
-        # flat = I.construct_param()
-        # M.mesh.save(flat,f"{snap_dir}/flat_{self.n_snap}.geogram_ascii")
-
-        self.n_snap += 1
-
     def optimize(self):
-        # _ = self.instance.work_mesh.edges.create_attribute("energy", float)
-
         if not self.instance.initialized:
             self.log("Error : Variables are not initialized")
             raise Exception("Problem was not initialized.")
