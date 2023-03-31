@@ -16,6 +16,14 @@ from tqdm import tqdm, trange
 from tqdm.utils import _term_move_up
 prefix = _term_move_up() + '\r'
 
+##########
+
+# LIN_OPTIMIZER = "qdldl"
+LIN_OPTIMIZER = "mkl pardiso"
+
+##########
+
+
 @dataclass
 class OptimHyperParameters:
     ### Hyper parameters for the Levenberg-Marquardt algorithm
@@ -277,7 +285,7 @@ class Optimizer(Worker):
             self.stop_criterion_instance = OSQP()
             self.stop_criterion_instance.setup(
                 sp.eye(n,format=("csc")), q=-2*G, A = self.cstMat, l = self.cstRHS, u = self.cstRHS,
-                verbose=self.verbose_options.qp_solver_verbose) #, linsys_solver='mkl pardiso')
+                verbose=self.verbose_options.qp_solver_verbose)
         else:
             self.stop_criterion_instance.update(q=-2*G)
         x = self.stop_criterion_instance.solve().x
@@ -346,7 +354,7 @@ class Optimizer(Worker):
                     verbose=self.verbose_options.qp_solver_verbose,
                     eps_abs=1e-3, eps_rel=1e-3,
                     max_iter=100, polish=True, check_termination=10, 
-                    adaptive_rho=True, linsys_solver='mkl pardiso')
+                    adaptive_rho=True, linsys_solver=LIN_OPTIMIZER)
                 s = osqp_instance.solve().x
 
                 if s[0] is not None:

@@ -7,6 +7,14 @@ from .energy import *
 import scipy.sparse as sp
 import numpy as np
 
+##########
+
+# LIN_OPTIMIZER = "qdldl"
+LIN_OPTIMIZER = "mkl pardiso"
+
+##########
+
+
 class Optimizer(Worker):
     def __init__(self, 
     instance: Instance, 
@@ -19,7 +27,6 @@ class Optimizer(Worker):
         self.cstMat   : sp.csc_matrix = None
         self.cstRHS_l : np.ndarray    = None
         self.cstRHS_u : np.ndarray    = None # lower and upper bounds
-
 
         #### Metric matrix
         self.metric_t = 0.95
@@ -172,7 +179,7 @@ class Optimizer(Worker):
                 return F, sp.csc_matrix((V,(R,C)), shape=(F.size, nvar))
             return aux
         
-        self.optimizer = M.optimize.LevenbergMarquardt()
+        self.optimizer = M.optimize.LevenbergMarquardt(lin_solver=LIN_OPTIMIZER)
         self.optimizer.HP.N_ITER_MAX = self.options.n_iter_max
         self.optimizer.register_constraints(self.cstMat, self.cstRHS_l, self.cstRHS_u)
         self.optimizer.set_metric_matrix(self.metric_matrix)

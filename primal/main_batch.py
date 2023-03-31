@@ -1,6 +1,6 @@
 """
 main_batch.py
-Runs the parametrization algorithm on all the meshes found in the given folder, with the same parameters on all models
+Runs the parametrization algorithm on all the meshes found in the given directory, with the same parameters on all models
 """
 
 import os
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument("-report-name", "--report-name", default="", help="name of the final csv report")
     
     parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "conf", "arap", "iso", "area", "scale"], default="none", \
-        help="choice of distortion energy")
+        help="choice of distortion")
     
     parser.add_argument("-init-mode", "--init-mode", type=str, choices=["zero", "smooth", "curv", "random"], default="zero", \
         help="Initialization mode for frame field and rotations")

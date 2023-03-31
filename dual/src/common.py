@@ -1,6 +1,6 @@
 import cmath
 from cmath import polar, rect
-from math import log, pi, sqrt, cos, sin, atan, atan2
+from math import log, pi, cos, sin, atan2
 import numpy as np
 from numba import jit, prange
 import csv

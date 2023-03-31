@@ -48,7 +48,7 @@ if __name__ == "__main__":
         help="maximum number of iterations in optimization")
 
     parser.add_argument("-dist", "--distortion", type=str, choices=DIST_CHOICES, default="none", \
-        help="choice of distortion energy")
+        help="choice of distortion")
 
     parser.add_argument("-init-smooth", "--init-smooth", action="store_true", \
         help="Initializes the frame field as a smooth one (vs zeros everywhere)")
