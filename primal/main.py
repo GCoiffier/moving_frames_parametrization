@@ -1,9 +1,8 @@
-from src.worker import Distortion, Options, VerboseOptions
+from src.common import Distortion, Options, VerboseOptions
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
 from src.reconstruct import ParamConstructor, write_output_obj
-# from src.energy import *
 from visualize import generate_visualization
 from graphite import generate_graphite_lua
 
@@ -22,8 +21,20 @@ def export_dict_as_csv(data : dict, filepath):
 
 np.set_printoptions(threshold=1000000, precision=3, linewidth=np.nan)
 
+DIST_CHOICES = [
+    "none",         # No distortion
+    "lscm",         # Conformal distortion by energy
+    "lscm_metric",  # Conformal distortion by change of metric in optimizer
+    "arap",         # isometric distortion by energy
+    "arap_metric",  # isometric distortion by change of metric
+    "id",           # identity distortion by energy
+    "id_cst",       # identity distortion by linear constraints
+    "id_metric",    # identity distortion by change of metric
+    "area",         # area distortion by energy
+    "area_metric",  # area distortion by change of metric
+]
+
 if __name__ == "__main__":
-    DIST_CHOICES = ["none", "lscm", "lscmb", "shear", "iso", "id", "idb", "idc", "conf", "normal", "rigid"]
     
     parser = argparse.ArgumentParser()
 
@@ -36,14 +47,11 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--n-iter-max", type=int, default=500, \
         help="maximum number of iterations in optimization")
 
-    parser.add_argument("-s", "--snapshot", type=int, default=0, \
-        help="snapshot frequency")
-
     parser.add_argument("-dist", "--distortion", type=str, choices=DIST_CHOICES, default="none", \
         help="choice of distortion energy")
 
-    parser.add_argument("-init-fixed-ff", "--init-fixed-ff", action="store_true", \
-        help="Initializes the frame field as a smooth one.")
+    parser.add_argument("-init-smooth", "--init-smooth", action="store_true", \
+        help="Initializes the frame field as a smooth one (vs zeros everywhere)")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
         help="Runs the optimization with a fixed frame field.")
@@ -54,14 +62,14 @@ if __name__ == "__main__":
     parser.add_argument("-no-tqdm", "--no-tqdm", action="store_true",\
         help="disables tqdm progress bar")
 
+    parser.add_argument("-silent", "--silent", action="store_true",\
+        help="disables output in terminal")
+
     parser.add_argument("-debug-output", "--debug-output", action="store_true",
         help="Debug output. This options outputs various meshes on top of the standard .obj output")
 
     parser.add_argument("-visu-output", "--visu-output", action="store_true",
         help="Visualization output. This options outputs singularities, seams and features as surface meshes for rendering and visualization.")
-
-    parser.add_argument("-silent", "--silent", action="store_true",\
-        help="disables verbose")
 
     args = parser.parse_args()
 
@@ -83,12 +91,11 @@ if __name__ == "__main__":
         qp_solver_verbose=False,
         optim_verbose= not args.silent,
         tqdm= not args.no_tqdm,
-        snapshot_freq=args.snapshot,
         log_freq=1
     )
 
     options = Options(
-        initFixedFF=args.init_fixed_ff,
+        initSmooth=args.init_smooth,
         optimFixedFF=args.optim_fixed_ff,
         distortion=Distortion.from_string(args.distortion),
         features= args.detect_features,
@@ -112,34 +119,6 @@ if __name__ == "__main__":
     
     ##### Optimization #####
     optim = Optimizer(instance, options=options, verbose_options=verbose_options)
-    
-    # names, f, J = optim.funjacs( energies=[
-    #     (constraint_edge, "Edge", 1.),
-    #     #(optim._E_valid_quad,"Quad", 1),
-    #     #(optim._E_rot_follows_ff, "rotFF", 1),
-    #     #(optim._E_inside_singu, "Singu", 1),
-    #     #(optim._E_align_features, " Feat", 1),
-    #     #(optim._E_corner_distortion, "Dist", 1),
-    #     #(optim._E_ring_distortion, "RingDist", 1.),
-    #     #(optim._E_lscm, "lscm", 1.),
-    #     #(optim._E_rot_penalty, "w", 1),
-    # ])
-    # energies = [(n,np.dot(u,u)/2) for n,u in zip(names,f)]
-    # print("Energies:", energies)
-    # #exit()
-    # print(J)
-    # print("\n-----\n")
-    # fd = optim.jacFD()
-    # fd.sort(key = lambda x : (x[0][1], x[0][0]))
-    # for (x,y),u in fd:
-    #     if abs(u - J[x,y])>1e-7:
-    #         print((x,y), " FD: {:.8E} | {:.8E}  real  /!\\".format(u, J[x,y]))
-    #     else:
-    #         print((x,y), " FD: {:.8E} | {:.8E}  real".format(u, J[x,y]))
-
-    # print(instance.var_sep_ff, instance.var_sep_rot)
-    # exit()
-
     final_energy = optim.optimize()
     
     ##### Reconstruction and export #####

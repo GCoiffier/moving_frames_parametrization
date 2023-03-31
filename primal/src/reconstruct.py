@@ -86,13 +86,22 @@ class ParamConstructor(Worker):
         return self
 
     def export_frame_field(self) -> M.mesh.PolyLine:
-        """
-        Exports the frame field as a mesh for visualization.
-
-        Returns:
-            PolyLine: the frame field as a mesh object
-        """
-        return self.instance.export_frame_field()
+        I = self.instance
+        FFMesh = M.mesh.new_polyline()
+        L = M.attributes.mean_edge_length(I.mesh)/3
+        for id_face, face in enumerate(I.mesh.faces):
+            pA,pB,pC = (I.mesh.vertices[u] for u in face)
+            X,Y = I.local_base(id_face)
+            Z = geom.cross(X,Y)
+            ff = I.get_var_ff(id_face)
+            ff = complex(ff[0], ff[1])
+            angle = cmath.phase(ff)/4
+            bary = (pA+pB+pC)/3 # reference point for display
+            r1,r2,r3,r4 = (geom.rotate_around_axis(X, Z, angle + k*math.pi/2) for k in range(4))
+            p1,p2,p3,p4 = (bary + abs(ff)*L*r for r in (r1,r2,r3,r4))
+            FFMesh.vertices += [bary, p1, p2, p3, p4]
+            FFMesh.edges += [(5*id_face, 5*id_face+k) for k in range(1,5)]
+        return FFMesh
 
     def export_feature_graph(self) -> M.mesh.PolyLine:
        return self.instance.feat.feature_graph
@@ -113,9 +122,8 @@ class ParamConstructor(Worker):
             I.singu_ptcld.vertices.append(I.mesh.vertices[iV])
             index[i] = round(I.singular_vertices[iV])
             i += 1
-        for v in I.feat.corners:
-            bndv = I.mesh.is_vertex_on_border(v)
-            if I.feat.corners[v] == 4 : continue
+        for v in I.feat.feature_vertices:
+            if I.feat.corners[v] in (2,4) : continue
             I.singu_ptcld.vertices.append(I.mesh.vertices[v])
             index[i] = I.feat.corners[v]
             i += 1

@@ -15,6 +15,13 @@ from time import time
 
 np.set_printoptions(threshold=1000000, precision=3, linewidth=np.nan)
 
+DISTORTION_CHOICES = [
+    "none", # no distortion
+    "lscm", # conformal distortion
+    "arap", # isometric distortion
+    "area", # area distortion
+]
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -28,7 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--n-iter-max", type=int, default=1000, \
         help="maximum number of iterations in optimization")
 
-    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "conf", "arap", "iso", "area", "scale"], default="none", \
+    parser.add_argument("-dist", "--distortion", type=str, choices=DISTORTION_CHOICES, default="none", \
         help="choice of distortion energy")
 
     parser.add_argument("-fbnd", "--free-boundary", action="store_true", help="Free boundary - No cones mode")

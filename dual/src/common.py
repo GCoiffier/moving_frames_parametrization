@@ -21,11 +21,11 @@ class Distortion(Enum):
 
     @staticmethod
     def from_string(s :str):
-        if "lscm" in s.lower() or "conf" in s.lower():
+        if "lscm" in s.lower():
             return Distortion.LSCM
-        if "arap" in s.lower() or "iso" in s.lower():
+        if "arap" in s.lower():
             return Distortion.ARAP
-        if "area" in s.lower() or "scale" in s.lower():
+        if "area" in s.lower():
             return Distortion.AREA
         return Distortion.NONE
 

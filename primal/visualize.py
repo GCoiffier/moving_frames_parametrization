@@ -1,15 +1,10 @@
 import mouette as M
 import sys
-from os.path import join
 
 """
 visualize.py
 
 This scripts takes as input an output of the algorithm, and exports seams and singularities as surface meshes for vizualisation and render.
-
-For each different singular index, we output a mesh consisting of an isosahedron at each singu position. Subdivide using a Catmull-Clark scheme to get a nice sphere and render a pretty point cloud.
-
-For each seam edge and feature edge, we create a small cylinder.
 
 Usage:
     ` python visualize.py <folder_1> ... <folder_n>
