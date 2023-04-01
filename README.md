@@ -21,7 +21,7 @@ This will install the needed python modules and their dependencies :
 
 If you are in the `vertex_based` or the `face_based` folder, the following command then should output a parametrization :
 
-```python main.py ../test_inputs/flap.obj```
+```python main.py -feat ../test_inputs/flap.obj```
 
 #### Linear solver options
 
