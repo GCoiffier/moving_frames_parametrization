@@ -34,7 +34,11 @@ The code has been tested on Ubuntu 18.04, 20.04 and 22.04.
 Inputs of both versions of the algorithm consist in a triangular mesh, given either as a `.obj`, `.mesh` or `.geogram_ascii` file.
 Outputs consist in a subfolder in the `output` directory, containing :
 - an `.obj` file with uv-coordinates and additionnal fields for cone and seam positions
+
+- a `.csv` file containing a summary of the result's distortion as well as various infos (like execution time or number of singularities). Distortion measures used in the paper are `authalic` and `stretch_mean`. Distortion meaning can be found in the documentation of mouette : https://gcoiffier.github.io/mouette/Algorithms/Parametrization/00_distortion/
+
 - if the `--debug-output` option is used, additionnal files to visualize different quantities on the mesh (in form of `.obj` and `.geogram_ascii` files). To read the `.geogram_ascii` files, use the Graphite software : https://github.com/BrunoLevy/GraphiteThree
+
 - if the `--visu-output` option is used, additionnal `.obj` files for visualization of singularity cones and seams, to be imported in your favorite rendering software.
 
 ## Vertex based algorithm
