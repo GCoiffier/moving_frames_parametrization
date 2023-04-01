@@ -188,7 +188,6 @@ def write_output_obj(I : Instance, file_path : str):
             if not I.mesh.is_edge_on_border(a,b):
                 fr.write(f"ft {a+1} {b+1}\n")
 
-
 class ParamConstructor(Worker):
     """Worker responsible for putting the parametrization back together after optimization. Also exports various debug outputs"""
 

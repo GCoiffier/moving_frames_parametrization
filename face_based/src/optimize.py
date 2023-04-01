@@ -7,10 +7,17 @@ from .energy import *
 import scipy.sparse as sp
 import numpy as np
 
+from osqp import OSQP
+
 ##########
 
-# LIN_OPTIMIZER = "qdldl"
-LIN_OPTIMIZER = "mkl pardiso"
+def get_osqp_lin_solver():
+    try:
+        inst = OSQP()
+        inst.setup(P=sp.identity(1, format="csc"), verbose=False, linsys_solver="mkl pardiso")
+        return "mkl pardiso"
+    except ValueError:
+        return "qdldl"
 
 ##########
 
@@ -39,6 +46,11 @@ class Optimizer(Worker):
         self.edge_weight : float = 10.
         self.FF_weight : float = 1.
         self.dist_weight : float = 1.
+
+        self._linsys_solver = get_osqp_lin_solver()
+        if self._linsys_solver == 'qdldl':
+            self.log("WARNING : OSQP will run with qdldl as its internal linear solver.\n For better performance, we recommend to install and use 'mkl pardiso' instead : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html")
+            print("\n\n")
 
     def compute_constraints(self):
         I = self.instance
@@ -179,7 +191,7 @@ class Optimizer(Worker):
                 return F, sp.csc_matrix((V,(R,C)), shape=(F.size, nvar))
             return aux
         
-        self.optimizer = M.optimize.LevenbergMarquardt(lin_solver=LIN_OPTIMIZER)
+        self.optimizer = M.optimize.LevenbergMarquardt(lin_solver=self._linsys_solver)
         self.optimizer.HP.N_ITER_MAX = self.options.n_iter_max
         self.optimizer.register_constraints(self.cstMat, self.cstRHS_l, self.cstRHS_u)
         self.optimizer.set_metric_matrix(self.metric_matrix)

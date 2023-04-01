@@ -18,11 +18,15 @@ prefix = _term_move_up() + '\r'
 
 ##########
 
-# LIN_OPTIMIZER = "qdldl"
-LIN_OPTIMIZER = "mkl pardiso"
+def get_osqp_lin_solver():
+    try:
+        inst = OSQP()
+        inst.setup(P=sp.identity(1, format="csc"), verbose=False, linsys_solver="mkl pardiso")
+        return "mkl pardiso"
+    except ValueError:
+        return "qdldl"
 
 ##########
-
 
 @dataclass
 class OptimHyperParameters:
@@ -59,6 +63,11 @@ class Optimizer(Worker):
         self.FF_weight : float = 10.
         self.singu_det_threshold = 0.5 # minimal ratio value for the singularity barrier term 
         self.orient_det_threshold = 0.5 # minimal ratio value for the orientation barrier term
+
+        self._linsys_solver : str = get_osqp_lin_solver() # 'mkl pardiso' or 'qdldl'
+        if self._linsys_solver == 'qdldl':
+            self.log("WARNING : OSQP will run with qdldl as its internal linear solver.\n For better performance, we recommend to install and use 'mkl pardiso' instead : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html")
+            print("\n\n")
 
     def compute_constraints(self):
         I = self.instance
@@ -354,7 +363,7 @@ class Optimizer(Worker):
                     verbose=self.verbose_options.qp_solver_verbose,
                     eps_abs=1e-3, eps_rel=1e-3,
                     max_iter=100, polish=True, check_termination=10, 
-                    adaptive_rho=True, linsys_solver=LIN_OPTIMIZER)
+                    adaptive_rho=True, linsys_solver=self._linsys_solver)
                 s = osqp_instance.solve().x
 
                 if s[0] is not None:
