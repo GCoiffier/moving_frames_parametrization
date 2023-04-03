@@ -342,8 +342,8 @@ def init_var_ff_and_rot_random(I : Instance, var_edge):
     for v in I.feat.feature_vertices:
         nv = var_ff[2*v]**2 + var_ff[2*v+1]**2
         if abs(nv)>1e-8:
-            var_ff[2*v] /= sqrt(nv)
-            var_ff[2*v+1] /= sqrt(nv)
+            var_ff[2*v] /= np.sqrt(nv)
+            var_ff[2*v+1] /= np.sqrt(nv)
         else:
             var_ff[2*v] = 1.
             var_ff[2*v+1] = 0.
@@ -352,7 +352,7 @@ def init_var_ff_and_rot_random(I : Instance, var_edge):
     for e,(A,B) in enumerate(I.work_mesh.edges):
         fA = complex(var_ff[2*A], var_ff[2*A+1])
         fB = complex(var_ff[2*B], var_ff[2*B+1]) # representation complex for A and B
-        aA,aB = I.parallel_transport[(A,B)], I.parallel_transport[(B,A)] # local basis orientation for A and B
+        aA,aB = I.connection.transport(A,B), I.connection.transport(B,A) # local basis orientation for A and B
         uB = roots(fB, 4)[0]
         abs_angles = [abs( angle_diff( cmath.phase(uB) - aB - pi, cmath.phase(uA)-aA)) for uA in roots(fA, 4)]
         angles = [angle_diff( cmath.phase(uB) - aB - pi, cmath.phase(uA)-aA) for uA in roots(fA, 4)]
