@@ -71,8 +71,8 @@ options:
   -fbnd, --free-boundary
         Free boundary - No cones mode
 
-  -init-mode {zero,smooth,curv,random}, --init-mode {zero,smooth,curv,random}
-        Initialization mode for frame field and rotations
+  -init-mode {auto,zero,smooth,curv,random}, --init-mode {auto,zero,smooth,curv,random}
+        Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise
 
   -optim-fixed-ff, --optim-fixed-ff
         Runs the optimization with a fixed pre-computed frame field.
@@ -123,8 +123,8 @@ options:
   -dist {none,lscm,lscm_metric,arap,arap_metric,id,id_cst,id_metric,area,area_metric}, --distortion {none,lscm,lscm_metric,arap,arap_metric,id,id_cst,id_metric,area,area_metric}
         choice of distortion
 
-  -init-smooth, --init-smooth
-        Initializes the frame field as a smooth one (vs zeros everywhere)
+ -init-mode {auto,zero,smooth}, --init-mode {auto,zero,smooth}
+        Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise
 
   -optim-fixed-ff, --optim-fixed-ff
         Runs the optimization with a fixed frame field.
