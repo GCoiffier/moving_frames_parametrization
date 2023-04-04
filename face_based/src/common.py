@@ -54,6 +54,25 @@ class Distortion(Enum):
 
         return Distortion.NONE
 
+##### Init Mode #####
+
+class InitMode(Enum):
+    """
+    Initialization mode
+    """
+    AUTO = 0 # ZERO if features, SMOOTH if no features
+    ZERO   = 1
+    SMOOTH = 2
+
+    @staticmethod
+    def from_string(s :str):
+        if "choice" in s.lower():
+            return InitMode.AUTO
+        if "zero" in s.lower():
+            return InitMode.ZERO
+        if "smooth" in s.lower():
+            return InitMode.SMOOTH
+        raise Exception(f"InitMode {s} not recognized")
 
 ##### Default running options #####
 
@@ -68,7 +87,7 @@ class VerboseOptions:
 
 @dataclass
 class Options:
-    initSmooth: bool = False
+    initMode: InitMode = InitMode.AUTO
     optimFixedFF: bool = False
     distortion: Distortion = Distortion.NONE
     features:bool = False

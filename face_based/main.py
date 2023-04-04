@@ -1,4 +1,4 @@
-from src.common import Distortion, Options, VerboseOptions
+from src.common import InitMode, Distortion, Options, VerboseOptions
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     parser.add_argument("-dist", "--distortion", type=str, choices=DIST_CHOICES, default="none", \
         help="choice of distortion")
 
-    parser.add_argument("-init-smooth", "--init-smooth", action="store_true", \
-        help="Initializes the frame field as a smooth one (vs zeros everywhere)")
+    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["auto", "zero", "smooth"], default="auto", \
+        help="Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
         help="Runs the optimization with a fixed frame field.")
@@ -86,20 +86,20 @@ if __name__ == "__main__":
     START_TIME = time()
 
     verbose_options = VerboseOptions(
-        output_dir=FOLDER,
-        logger_verbose= not args.silent,
-        qp_solver_verbose=False,
-        optim_verbose= not args.silent,
-        tqdm= not args.no_tqdm,
-        log_freq=1
+        output_dir = FOLDER,
+        logger_verbose = not args.silent,
+        qp_solver_verbose = False,
+        optim_verbose = not args.silent,
+        tqdm = not args.no_tqdm,
+        log_freq = 1
     )
 
     options = Options(
-        initSmooth=args.init_smooth,
-        optimFixedFF=args.optim_fixed_ff,
-        distortion=Distortion.from_string(args.distortion),
-        features= args.detect_features,
-        n_iter_max=args.n_iter_max
+        initMode = InitMode.from_string(args.init_mode),
+        optimFixedFF = args.optim_fixed_ff,
+        distortion = Distortion.from_string(args.distortion),
+        features = args.detect_features,
+        n_iter_max = args.n_iter_max
     )
     options.set_schedule()
     

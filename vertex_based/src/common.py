@@ -35,13 +35,16 @@ class InitMode(Enum):
     """
     Initialization mode
     """
-    ZERO = 0
-    SMOOTH = 1
-    CURVATURE = 2
-    RANDOM = 3
+    AUTO = 0 # ZERO if features or boundary, SMOOTH otherwise
+    ZERO = 1
+    SMOOTH = 2
+    CURVATURE = 3
+    RANDOM = 4
 
     @staticmethod
     def from_string(s :str):
+        if "auto" in s.lower():
+            return InitMode.AUTO
         if "zero" in s.lower():
             return InitMode.ZERO
         if "smooth" in s.lower():
@@ -67,7 +70,7 @@ class VerboseOptions:
 class Options:
     distortion : Distortion = Distortion.NONE
     features : bool = False
-    initMode : InitMode = InitMode.ZERO
+    initMode : InitMode = InitMode.AUTO
     optimFixedFF : bool = False
     n_iter_max : int = 1000
     free_boundary : bool = False

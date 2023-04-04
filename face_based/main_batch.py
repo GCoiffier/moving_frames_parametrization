@@ -78,7 +78,7 @@ if __name__ == "__main__":
                 )
 
                 options = Options(
-                    initSmooth=args.init_fixed_ff,
+                    initMode=args.init_fixed_ff,
                     optimFixedFF=args.optim_fixed_ff,
                     distortion=Distortion.from_string(args.distortion),
                     features= args.detect_features,

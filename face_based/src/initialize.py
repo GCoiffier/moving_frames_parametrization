@@ -1,8 +1,8 @@
 import mouette as M
-from mouette import geometry as geom
 from .worker import *
+from .common import InitMode
 from .instance import Instance
-from math import atan2, pi, tan
+from math import tan
 import numpy as np
 
 def rescale_input_mesh(I : Instance):
@@ -123,7 +123,7 @@ def initialize_var_ff_trivial_connection(I: Instance):
     return var_ff, var_rot
 
 
-def initialize_var_ff_fixed(I: Instance, feat:bool, verbose:bool, compute_singus):
+def initialize_var_ff_smooth(I: Instance, feat:bool, verbose:bool, compute_singus):
     ff = M.framefield.SurfaceFrameField(I.mesh, "faces", features=feat, verbose=verbose, custom_connection=I.connection, custom_feature=I.feat)()
     ff.flag_singularities()
     
@@ -176,11 +176,17 @@ class Initializer(Worker):
         self.log("Initialize variables")
         initialize_edge_indices(self.instance)
         var_jac = initialize_var_jacobian(self.instance) # same init whatever the init mode
-        if self.options.initSmooth:
-            var_ff, var_rot = initialize_var_ff_fixed(self.instance, self.options.features, verb, self.options.optimFixedFF) # inits both ff and rotations
-        else:
+
+        init_zero = (
+            self.options.initMode == InitMode.ZERO or \
+            (self.options.initMode == InitMode.AUTO and (self.options.features or len(self.instance.mesh.boundary_vertices)>0))
+        )
+        
+        if init_zero:
             var_ff = initialize_var_ff_on_feat(self.instance)
             var_rot = initialize_var_rotations(self.instance)
+        else:
+            var_ff, var_rot = initialize_var_ff_smooth(self.instance, self.options.features, verb, self.options.optimFixedFF) # inits both ff and rotations
         self.instance.var = np.concatenate([var_jac, var_ff, var_rot]).astype(np.float64)
 
         initialize_ff_indices(self.instance)

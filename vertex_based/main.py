@@ -40,8 +40,8 @@ if __name__ == "__main__":
 
     parser.add_argument("-fbnd", "--free-boundary", action="store_true", help="Free boundary - No cones mode")
 
-    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["zero", "smooth", "curv", "random"], default="zero", \
-        help="Initialization mode for frame field and rotations")
+    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["auto", "zero", "smooth", "curv", "random"], default="auto", \
+        help="Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
         help="Runs the optimization with a fixed pre-computed frame field.")

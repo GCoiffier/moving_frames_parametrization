@@ -247,7 +247,9 @@ def init_var_ff_and_rot_full(I : Instance, compute_singus : bool, verbose : bool
         cad_correction=True,
         smooth_normals=False,
         custom_connection=I.connection,
-        custom_feature=I.feat)
+        custom_feature=I.feat,
+        verbose=verbose
+    )
 
     ff.initialize()
     ff.optimize()
@@ -284,9 +286,9 @@ def init_var_ff_and_rot_full(I : Instance, compute_singus : bool, verbose : bool
 def init_var_ff_and_rot_curvature(I : Instance, optim_fixed_ff:bool):
     assert I.order == 4
 
-    ff = M.framefield.PrincipalDirections(I.work_mesh,"vertices", features=True, curv_threshold=0.08, patch_size=5, custom_features=I.feat) 
+    ff = M.framefield.PrincipalDirections(I.work_mesh,"vertices", features=True, curv_threshold=0.08, patch_size=5, n_smooth=0, custom_features=I.feat) 
     ff.initialize()
-    ff.optimize(n_smooth=0)
+    ff.optimize()
     ff.flag_singularities() # build attributes 'faces.singuls' and 'edges.angles'
     if optim_fixed_ff:
         I._singular_faces = I.work_mesh.faces.get_attribute("singuls") # retrieve singularities from the attribute created by flag_singularities
@@ -515,14 +517,22 @@ class Initializer(Worker):
         if self.options.free_boundary:
             var_ff,var_rot = init_var_ff_and_rot_free_bnd(self.instance)
         else:
-            if self.options.initMode == InitMode.CURVATURE:
+            if self.options.initMode == InitMode.AUTO:
+                if self.options.features or len(self.instance.mesh.boundary_vertices)>0:
+                    # init zero
+                    var_ff  = init_var_ff_on_feat(self.instance, var_edges) 
+                    var_rot = init_var_rotations(self.instance, var_ff)
+                else:
+                    # init smooth
+                    var_ff, var_rot = init_var_ff_and_rot_full(self.instance, self.options.optimFixedFF, self.verbose_options.logger_verbose)
+            elif self.options.initMode == InitMode.CURVATURE:
                 var_ff, var_rot = init_var_ff_and_rot_curvature(self.instance, self.options.optimFixedFF)
             elif self.options.initMode == InitMode.SMOOTH:
                 var_ff, var_rot = init_var_ff_and_rot_full(self.instance, self.options.optimFixedFF, self.verbose_options.logger_verbose)
             elif self.options.initMode == InitMode.RANDOM:
                 var_ff, var_rot = init_var_ff_and_rot_random(self.instance, var_edges)
             else: # init mode is zero
-                var_ff = init_var_ff_on_feat(self.instance, var_edges) 
+                var_ff  = init_var_ff_on_feat(self.instance, var_edges) 
                 var_rot = init_var_rotations(self.instance, var_ff)
         
         self.instance.var = np.concatenate((var_edges, var_ff, var_rot))
