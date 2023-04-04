@@ -1,6 +1,6 @@
 # Moving Frames Surface Parametrization
 
-![](https://repository-images.githubusercontent.com/620222816/5c3d58c7-ca65-456f-b0dd-be30b00d9945)
+![](https://repository-images.githubusercontent.com/620222816/4fea6dfa-d35c-42b2-8ff5-4e697fd39bd5)
 
 Global seamless parametrization algorithm for triangular meshes using Cartan's method of moving frames
 
