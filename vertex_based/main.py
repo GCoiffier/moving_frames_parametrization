@@ -1,4 +1,4 @@
-from src.common import export_dict_as_csv, Distortion, InitMode, Options, VerboseOptions
+from src.common import export_dict_as_csv, float_range, Distortion, InitMode, Options, VerboseOptions
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
@@ -52,6 +52,9 @@ if __name__ == "__main__":
     parser.add_argument("-feat", "--detect-features", action="store_true", \
         help="enables feature detection and alignment")
     
+    parser.add_argument("-lf", "--lambda-f", type=float_range(1e-3,1e3), default=10.,
+        help="weighting term between parametrization and frame field energies. Defaults to 3")
+    
     parser.add_argument("-no-tqdm", "--no-tqdm", action="store_true",\
         help="disables tqdm progress bar")
 
@@ -94,7 +97,8 @@ if __name__ == "__main__":
         initMode = init_mode,
         optimFixedFF = args.optim_fixed_ff,
         n_iter_max = args.n_iter_max,
-        free_boundary= args.free_boundary
+        free_boundary = args.free_boundary,
+        lambda_f = args.lambda_f
     )
     options.set_schedule() # default schedule depending on distortion
 

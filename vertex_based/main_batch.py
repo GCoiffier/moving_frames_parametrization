@@ -25,12 +25,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("dir", type=str, help="path to the input mesh")
+
     parser.add_argument("-report-name", "--report-name", default="", help="name of the final csv report")
     
     parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "conf", "arap", "iso", "area", "scale"], default="none", \
         help="choice of distortion energy")
     
-    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["zero", "smooth", "curv", "random"], default="zero", \
+    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["auto", "zero", "smooth", "curv", "random"], default="auto", \
         help="Initialization mode for frame field and rotations")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
@@ -48,7 +49,7 @@ if __name__ == "__main__":
     print(all_files)
     
     with open(f"output/report{args.report_name}.csv", 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=["model", "energy", "time", "n_singus", "triangles", "conformal", "authalic", "det", "log_det", "iso", "shear", "stretch_max", "stretch_mean"])
+        writer = csv.DictWriter(csvfile, fieldnames=["model", "triangles", "energy", "time", "n_singus", "conformal", "iso", "shear", "scale", "stretch_mean", "stretch_max"])
         writer.writeheader()
         
         for inputmesh in all_files:

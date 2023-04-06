@@ -59,8 +59,12 @@ class Optimizer(Worker):
         self.dist_weight : float = 1.
         self.dist_area_balance : float = 0.1
 
-        self.edge_weight : float = 1.
-        self.FF_weight : float = 10.
+        if self.options.lambda_f<=1.:
+            self.edge_weight : float = 1/self.options.lambda_f
+            self.FF_weight : float = 1.
+        else:
+            self.edge_weight =1.
+            self.FF_weight = self.options.lambda_f
         self.singu_det_threshold = 0.5 # minimal ratio value for the singularity barrier term 
         self.orient_det_threshold = 0.5 # minimal ratio value for the orientation barrier term
 

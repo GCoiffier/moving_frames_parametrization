@@ -21,7 +21,6 @@ def get_osqp_lin_solver():
 
 ##########
 
-
 class Optimizer(Worker):
     def __init__(self, 
     instance: Instance, 
@@ -43,8 +42,13 @@ class Optimizer(Worker):
 
         #### Optimizer weights
         self.det_threshold : float = 0.5 # minimal value for which the log barrier on jacobian determinants is 0
-        self.edge_weight : float = 10.
-        self.FF_weight : float = 1.
+
+        if self.options.lambda_f<=1.:
+            self.edge_weight : float = 1/self.options.lambda_f
+            self.FF_weight : float = 1.
+        else:
+            self.edge_weight : float = 1.
+            self.FF_weight : float = self.options.lambda_f
         self.dist_weight : float = 1.
 
         self._linsys_solver = get_osqp_lin_solver()
@@ -191,8 +195,22 @@ class Optimizer(Worker):
                 return F, sp.csc_matrix((V,(R,C)), shape=(F.size, nvar))
             return aux
         
-        self.optimizer = M.optimize.LevenbergMarquardt(lin_solver=self._linsys_solver)
-        self.optimizer.HP.N_ITER_MAX = self.options.n_iter_max
+        lmverbose = M.optimize.levenberg_marquardt.LMVerboseOptions(
+            logger_verbose = self.verbose_options.logger_verbose,
+            solver_verbose = self.verbose_options.qp_solver_verbose,
+            use_tqdm       = self.verbose_options.tqdm,
+            log_frequency  = self.verbose_options.log_freq
+        )
+
+        optimhp = M.optimize.levenberg_marquardt.LMParameters(
+            N_ITER_MAX    = self.options.n_iter_max,
+            ENERGY_MIN    = 1e-7,
+            MIN_STEP_NORM = 1e-5,
+            MIN_GRAD_NORM = 1e-5,
+            MIN_DELTA_E   = 0.
+        )
+
+        self.optimizer = M.optimize.LevenbergMarquardt(HP=optimhp, lin_solver=self._linsys_solver, verbose=lmverbose)
         self.optimizer.register_constraints(self.cstMat, self.cstRHS_l, self.cstRHS_u)
         self.optimizer.set_metric_matrix(self.metric_matrix)
 

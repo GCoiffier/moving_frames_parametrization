@@ -1,5 +1,6 @@
 import cmath
 from cmath import polar, rect
+import argparse
 from math import log, pi, cos, sin, atan2
 import numpy as np
 from numba import jit, prange
@@ -73,6 +74,7 @@ class Options:
     initMode : InitMode = InitMode.AUTO
     optimFixedFF : bool = False
     n_iter_max : int = 1000
+    lambda_f : float = 10.
     free_boundary : bool = False
     dist_schedule : list = None
 
@@ -226,3 +228,26 @@ def export_dict_as_csv(data : dict, filepath):
         writer = csv.DictWriter(csvfile, fieldnames=data.keys())
         writer.writeheader()
         writer.writerow(data)
+
+def float_range(mini,maxi):
+    """Return function handle of an argument type function for 
+       ArgumentParser checking a float range: mini <= arg <= maxi
+         mini - minimum acceptable argument
+         maxi - maximum acceptable argument
+        https://stackoverflow.com/a/64259328
+    """
+
+    # Define the function with default arguments
+    def float_range_checker(arg):
+        """New Type function for argparse - a float within predefined range."""
+
+        try:
+            f = float(arg)
+        except ValueError:    
+            raise argparse.ArgumentTypeError("must be a floating point number")
+        if f < mini or f > maxi:
+            raise argparse.ArgumentTypeError("must be in range [" + str(mini) + " .. " + str(maxi)+"]")
+        return f
+
+    # Return function handle to checking function
+    return float_range_checker

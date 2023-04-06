@@ -10,7 +10,7 @@ import numpy as np
 from time import time
 
 import mouette as M
-from src.common import export_dict_as_csv, Distortion, Options, VerboseOptions
+from src.common import export_dict_as_csv, InitMode, Distortion, Options, VerboseOptions
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     print(all_files)
     
     with open(f"output/report{args.report_name}.csv", 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=["model", "energy", "time", "n_singus", "triangles", "conformal", "authalic", "det", "log_det", "iso", "shear", "stretch_max", "stretch_mean"])
+        writer = csv.DictWriter(csvfile, fieldnames=["model", "triangles", "time", "final_energy", "n_singus", "conformal", "iso", "shear", "scale", "stretch_mean", "stretch_max"])
         writer.writeheader()
         
         for inputmesh in all_files:
@@ -95,7 +95,7 @@ if __name__ == "__main__":
                     optimFixedFF=args.optim_fixed_ff,
                     distortion=Distortion.from_string(args.distortion),
                     features= args.detect_features,
-                    n_iter_max=args.n_iter_max
+                    n_iter_max=300
                 )
                 options.set_schedule()
 

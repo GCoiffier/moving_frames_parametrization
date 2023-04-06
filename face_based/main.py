@@ -1,4 +1,4 @@
-from src.common import InitMode, Distortion, Options, VerboseOptions
+from src.common import InitMode, Distortion, Options, VerboseOptions, float_range
 from src.instance import Instance
 from src.initialize import Initializer
 from src.optimize import Optimizer
@@ -59,6 +59,9 @@ if __name__ == "__main__":
     parser.add_argument("-feat", "--detect-features", action="store_true", \
         help="enables feature detection and alignment")
     
+    parser.add_argument("-lf", "--lambda-f", type=float_range(1e-3,1e3), default=3.,
+        help="weighting term between parametrization and frame field energies. Defaults to 3")
+
     parser.add_argument("-no-tqdm", "--no-tqdm", action="store_true",\
         help="disables tqdm progress bar")
 
@@ -99,7 +102,8 @@ if __name__ == "__main__":
         optimFixedFF = args.optim_fixed_ff,
         distortion = Distortion.from_string(args.distortion),
         features = args.detect_features,
-        n_iter_max = args.n_iter_max
+        n_iter_max = args.n_iter_max,
+        lambda_f=args.lambda_f
     )
     options.set_schedule()
     

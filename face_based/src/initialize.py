@@ -124,7 +124,7 @@ def initialize_var_ff_trivial_connection(I: Instance):
 
 
 def initialize_var_ff_smooth(I: Instance, feat:bool, verbose:bool, compute_singus):
-    ff = M.framefield.SurfaceFrameField(I.mesh, "faces", features=feat, verbose=verbose, custom_connection=I.connection, custom_feature=I.feat)()
+    ff = M.framefield.SurfaceFrameField(I.mesh, "faces", features=feat, verbose=verbose, cad_correction=True, custom_connection=I.connection, custom_feature=I.feat)()
     ff.flag_singularities()
     
     if compute_singus:

@@ -5,6 +5,7 @@ import numpy as np
 from numba import jit
 import csv
 import numpy as np
+import argparse
 
 ##### Distortion #####
 
@@ -66,7 +67,7 @@ class InitMode(Enum):
 
     @staticmethod
     def from_string(s :str):
-        if "choice" in s.lower():
+        if "auto" in s.lower():
             return InitMode.AUTO
         if "zero" in s.lower():
             return InitMode.ZERO
@@ -87,11 +88,12 @@ class VerboseOptions:
 
 @dataclass
 class Options:
-    initMode: InitMode = InitMode.AUTO
-    optimFixedFF: bool = False
-    distortion: Distortion = Distortion.NONE
-    features:bool = False
-    n_iter_max:int = 500
+    initMode : InitMode = InitMode.AUTO
+    optimFixedFF : bool = False
+    distortion : Distortion = Distortion.NONE
+    features : bool = False
+    n_iter_max : int = 500
+    lambda_f : float = 10.
     dist_schedule : list = None
 
     def set_schedule(self,sch : list = None):
@@ -137,3 +139,26 @@ def export_dict_as_csv(data : dict, filepath):
         writer = csv.DictWriter(csvfile, fieldnames=data.keys())
         writer.writeheader()
         writer.writerow(data)
+
+def float_range(mini,maxi):
+    """Return function handle of an argument type function for 
+       ArgumentParser checking a float range: mini <= arg <= maxi
+         mini - minimum acceptable argument
+         maxi - maximum acceptable argument
+        https://stackoverflow.com/a/64259328
+    """
+
+    # Define the function with default arguments
+    def float_range_checker(arg):
+        """New Type function for argparse - a float within predefined range."""
+
+        try:
+            f = float(arg)
+        except ValueError:    
+            raise argparse.ArgumentTypeError("must be a floating point number")
+        if f < mini or f > maxi:
+            raise argparse.ArgumentTypeError("must be in range [" + str(mini) + " .. " + str(maxi)+"]")
+        return f
+
+    # Return function handle to checking function
+    return float_range_checker
