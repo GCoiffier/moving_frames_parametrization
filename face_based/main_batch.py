@@ -20,6 +20,19 @@ from visualize import generate_visualization
 
 np.set_printoptions(threshold=1000000, precision=3, linewidth=np.nan)
 
+DIST_CHOICES = [
+    "none",         # No distortion
+    "lscm",         # Conformal distortion by energy
+    "lscm_metric",  # Conformal distortion by change of metric in optimizer
+    "arap",         # isometric distortion by energy
+    "arap_metric",  # isometric distortion by change of metric
+    "id",           # identity distortion by energy
+    "id_cst",       # identity distortion by linear constraints
+    "id_metric",    # identity distortion by change of metric
+    "area",         # area distortion by energy
+    "area_metric",  # area distortion by change of metric
+]
+
 if __name__ == "__main__":
     os.makedirs("output", exist_ok=True)
 
@@ -27,11 +40,11 @@ if __name__ == "__main__":
     parser.add_argument("dir", type=str, help="path to the input mesh")
     parser.add_argument("-report-name", "--report-name", default="", help="name of the final csv report")
     
-    parser.add_argument("-dist", "--distortion", type=str, choices=["none", "lscm", "conf", "arap", "iso", "area", "scale"], default="none", \
+    parser.add_argument("-dist", "--distortion", type=str, choices=DIST_CHOICES, default="none", \
         help="choice of distortion")
     
-    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["zero", "smooth", "curv", "random"], default="zero", \
-        help="Initialization mode for frame field and rotations")
+    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["auto", "zero", "smooth"], default="auto", \
+        help="Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
         help="Runs the optimization with a fixed pre-computed frame field.")
@@ -78,7 +91,7 @@ if __name__ == "__main__":
                 )
 
                 options = Options(
-                    initMode=args.init_fixed_ff,
+                    initMode = InitMode.from_string(args.init_mode),
                     optimFixedFF=args.optim_fixed_ff,
                     distortion=Distortion.from_string(args.distortion),
                     features= args.detect_features,
