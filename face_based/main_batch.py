@@ -127,7 +127,7 @@ if __name__ == "__main__":
                 report["triangles"] = len(instance.mesh.faces)
                 export_dict_as_csv(report, os.path.join(FOLDER,"summary.csv"))
                 report["model"] = output_name
-                report["energy"] = final_energy
+                report["final_energy"] = final_energy
                 report["n_singus"] = len(instance.singular_vertices)
 
                 M.mesh.save(instance.mesh, os.path.join(FOLDER,"uvs.geogram_ascii"))

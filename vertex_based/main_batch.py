@@ -49,7 +49,7 @@ if __name__ == "__main__":
     print(all_files)
     
     with open(f"output/report{args.report_name}.csv", 'w', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=["model", "triangles", "energy", "time", "n_singus", "conformal", "iso", "shear", "scale", "stretch_mean", "stretch_max"])
+        writer = csv.DictWriter(csvfile, fieldnames=["model", "triangles", "final_energy", "time", "n_singus", "conformal", "iso", "shear", "scale", "stretch_mean", "stretch_max"])
         writer.writeheader()
         
         for inputmesh in all_files:
@@ -115,7 +115,7 @@ if __name__ == "__main__":
                 report["triangles"] = len(instance.mesh.faces)
                 export_dict_as_csv(report, os.path.join(FOLDER,"summary.csv"))
                 report["model"] = output_name
-                report["energy"] = final_energy
+                report["final_energy"] = final_energy
                 report["n_singus"] = len(instance.singular_vertices)
 
                 M.mesh.save(instance.mesh, os.path.join(FOLDER,"uvs.geogram_ascii"))
