@@ -127,7 +127,7 @@ def constraint_edge_noJ1(X : np.ndarray, Lengths: np.ndarray, PT : np.ndarray, n
         L = Lengths[e]
         iw = sepRot + e
         wpt = PT[e]
-        pt = cmath.rect(1.., pi-wpt)
+        pt = cmath.rect(1., pi-wpt)
         w = X[iw]
         ma = complex(X[ima], X[ima+1])
         mb = complex(X[imb], X[imb+1])
