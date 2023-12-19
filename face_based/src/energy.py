@@ -177,7 +177,7 @@ def constraint_rotations_follows_ff_noJ(X,I,PT, sepRot):
         w = X[iw]
         z1, z2 = complex(X[iz1], X[iz1+1]), complex(X[iz2], X[iz2+1]) # the ff representation
         a = PT[i]
-        a = cmath.rect(1, 4*a)
+        a = cmath.rect(1., 4*a)
         eiwp = complex(1, w) # positive
         eiwn = complex(1,-w) # negative
         val_e = (eiwp**4)*z2 - (eiwn**4)*a*z1
@@ -200,7 +200,7 @@ def constraint_rotations_follows_ff(X,I,PT, sepRot):
         w = X[iw]
         z1, z2 = complex(X[iz1], X[iz1+1]), complex(X[iz2], X[iz2+1]) # the ff representation
         a = PT[i]
-        a = cmath.rect(1, 4*a)
+        a = cmath.rect(1., 4*a)
 
         #  Cayley transform
         eiwp = complex(1, w) # positive

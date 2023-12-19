@@ -247,7 +247,7 @@ def init_var_ff_and_rot_full(I : Instance, compute_singus : bool, verbose : bool
         cad_correction=True,
         smooth_normals=False,
         custom_connection=I.connection,
-        custom_feature=I.feat,
+        custom_features=I.feat,
         verbose=verbose
     )
 

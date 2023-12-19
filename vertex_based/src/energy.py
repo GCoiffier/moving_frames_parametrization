@@ -12,7 +12,7 @@ def constraint_edge_fixed_w_noJ1(X, PT, n, m, sepRot):
     for e in prange(n):
         wpt = PT[e]
         w = 2*math.atan(X[sepRot +e])
-        ew = cmath.rect(1, pi-wpt+w)
+        ew = cmath.rect(1., pi-wpt+w)
         ima = 4*e
         imb = 4*e+2
         ma = complex(X[ima], X[ima+1])
@@ -32,7 +32,7 @@ def constraint_edge_fixed_w1(X, PT, n, m, sepRot):
     for e in prange(n):
         wpt = PT[e]
         w = 2*math.atan(X[sepRot +e])
-        ew = cmath.rect(1, pi-wpt+w)
+        ew = cmath.rect(1., pi-wpt+w)
         ima = 4*e
         imb = 4*e+2
         ma = complex(X[ima], X[ima+1])
@@ -64,7 +64,7 @@ def constraint_edge_fixed_w_noJ2(X, I, PT, n, m, sepRot):
         wpt = PT[e]
         w = X[iw]
         w = 2*math.atan(X[sepRot +e])
-        ew = cmath.rect(1, pi-wpt+w)
+        ew = cmath.rect(1., pi-wpt+w)
         ma = complex(X[ima], X[ima+1])
         sa = complex(X[isa], X[isa+1])
         mb = complex(X[imb], X[imb+1])
@@ -90,7 +90,7 @@ def constraint_edge_fixed_w2(X, I, PT, n, m, sepRot):
         wpt = PT[e]
         w = X[iw]
         w = 2*math.atan(X[sepRot +e])
-        ew = cmath.rect(1, pi-wpt+w)
+        ew = cmath.rect(1., pi-wpt+w)
         ma = complex(X[ima], X[ima+1])
         sa = complex(X[isa], X[isa+1])
         mb = complex(X[imb], X[imb+1])
@@ -127,7 +127,7 @@ def constraint_edge_noJ1(X : np.ndarray, Lengths: np.ndarray, PT : np.ndarray, n
         L = Lengths[e]
         iw = sepRot + e
         wpt = PT[e]
-        pt = cmath.rect(1., pi-wpt)
+        pt = cmath.rect(1.., pi-wpt)
         w = X[iw]
         ma = complex(X[ima], X[ima+1])
         mb = complex(X[imb], X[imb+1])
@@ -277,7 +277,7 @@ def constraint_rotations_follow_ff_noJ(X : np.ndarray, I : np.ndarray, PT : np.n
         w = X[iw]
         zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
         pt = PT[i]
-        wpt = cmath.rect(1, order*(pt - pi))
+        wpt = cmath.rect(1., order*(pt - pi))
         eiwp = complex(1, w)**order
         eiwm = complex(1,-w)**order
         val_e = eiwp*zB - eiwm*wpt*zA
@@ -299,7 +299,7 @@ def constraint_rotations_follow_ff(X : np.ndarray, I : np.ndarray, PT : np.ndarr
         w = X[iw]
         zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
         pt = PT[i]
-        wpt = cmath.rect(1, order*(pt - pi))
+        wpt = cmath.rect(1., order*(pt - pi))
 
         # Cayley transform
         eiwp = complex(1, w)
@@ -339,7 +339,7 @@ def constraint_rotations_follow_ff_order1_noJ(X : np.ndarray, I : np.ndarray, PT
         w = X[iw] # tangent(rotation / 2)
         zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
         pt = PT[i]
-        wpt = cmath.rect(1, pt - pi)
+        wpt = cmath.rect(1., pt - pi)
         eiwp = complex(1, w)
         eiwm = complex(1, -w)
         val_e = eiwp*zB - eiwm*wpt*zA
@@ -361,7 +361,7 @@ def constraint_rotations_follow_ff_order1(X : np.ndarray, I : np.ndarray, PT : n
         w = X[iw] # tangent(rotation / 2)
         zA, zB = complex(X[iza], X[iza+1]), complex(X[izb], X[izb+1]) # the ff representation
         pt = PT[i]
-        wpt = cmath.rect(1, pt - pi)
+        wpt = cmath.rect(1., pt - pi)
 
         # Cayley transform
         eiwp = complex(1, w)
