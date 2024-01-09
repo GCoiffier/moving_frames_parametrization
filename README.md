@@ -2,7 +2,9 @@
 
 ![](https://repository-images.githubusercontent.com/620222816/4fea6dfa-d35c-42b2-8ff5-4e697fd39bd5)
 
-Global seamless parametrization algorithm for triangular meshes using Cartan's method of moving frames
+Global seamless parametrization algorithm for triangular meshes using Cartan's method of moving frames. Code associated with the following publication:
+
+[_The method of moving frames for surface global parametrization_, Guillaume Coiffier and Etienne Corman, _Transaction on Graphics_, 2023](https://dl.acm.org/doi/abs/10.1145/3604282)
 
 ## Installation and dependencies
 
@@ -65,23 +67,23 @@ options:
   -n N_ITER_MAX, --n-iter-max N_ITER_MAX
         maximum number of iterations in optimization
 
+  -feat, --detect-features
+        enables feature detection and alignment.
+
   -dist {none,lscm,arap,area}, --distortion {none,lscm,arap,area}
         choice of distortion energy
 
-  -fbnd, --free-boundary
-        Free boundary - No cones mode
-
   -init-mode {auto,zero,smooth,curv,random}, --init-mode {auto,zero,smooth,curv,random}
-        Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise
+        Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enabled and 'smooth' otherwise
 
   -optim-fixed-ff, --optim-fixed-ff
         Runs the optimization with a fixed pre-computed frame field.
 
+  -fbnd, --free-boundary
+        Free boundary - No cones mode
+  
   -order ORDER, --order ORDER
-        order of the frame field
-
-  -feat, --detect-features
-        enables feature detection and alignment
+        order of the frame field (number of branches)
 
   -no-tqdm, --no-tqdm
         disables tqdm progress bar
@@ -120,6 +122,9 @@ options:
   -n N_ITER_MAX, --n-iter-max N_ITER_MAX
         maximum number of iterations in optimization
 
+  -feat, --detect-features
+        enables feature detection and alignment
+        
   -dist {none,lscm,lscm_metric,arap,arap_metric,id,id_cst,id_metric,area,area_metric}, --distortion {none,lscm,lscm_metric,arap,arap_metric,id,id_cst,id_metric,area,area_metric}
         choice of distortion
 
@@ -128,9 +133,6 @@ options:
 
   -optim-fixed-ff, --optim-fixed-ff
         Runs the optimization with a fixed frame field.
-
-  -feat, --detect-features
-        enables feature detection and alignment
 
   -no-tqdm, --no-tqdm   
         disables tqdm progress bar
