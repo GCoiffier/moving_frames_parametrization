@@ -17,14 +17,13 @@ def initialize_features(I : Instance, features:bool, verbose:bool):
     # subdivide triangles with two or more feature edges
     with M.processing.SurfaceSubdivision(I.mesh) as subdiv:
         for iF in I.mesh.id_faces:
-            eF = I.mesh.connectivity.face_to_edge(iF)
+            eF = I.mesh.connectivity.face_to_edges(iF)
             n_adj_feat = sum([e in I.feat.feature_edges for e in eF])
             if n_adj_feat>1:
                 subdiv.split_face_as_fan(iF)
                 split = True
     if split:
         I.mesh.connectivity.clear()
-        I.mesh.half_edges.clear()
         I.mesh.clear_boundary_data()
         I.feat.run(I.mesh) # should not be necessary
     return I
@@ -35,7 +34,7 @@ def initialize_attributes(I : Instance):
     I.PT_array = np.zeros(len(I.mesh.interior_edges), dtype=np.float64)
     for i,ie in enumerate(I.mesh.interior_edges):
         ea,eb = I.mesh.edges[ie]
-        T1,T2 = I.mesh.half_edges.edge_to_triangles(ea,eb)
+        T1,T2 = I.mesh.connectivity.edge_to_faces(ea,eb)
         I.PT_array[i] = I.connection.transport(T2,T1)
     return I
 
@@ -46,7 +45,7 @@ def initialize_edge_indices(I : Instance):
 
     for i,e in enumerate(I.mesh.interior_edges):
         v1,v2 = I.mesh.edges[e]
-        T1,T2 = I.mesh.half_edges.edge_to_triangles(v1,v2)
+        T1,T2 = I.mesh.connectivity.edge_to_faces(v1,v2)
         P1,P2 = (I.mesh.vertices[_v] for _v in (v1,v2))
         E = M.Vec(P2-P1)
         assert T1 is not None and T2 is not None
@@ -83,7 +82,7 @@ def initialize_var_ff_on_feat(I : Instance):
     for e in I.feat.feature_edges:
         e1,e2 = I.mesh.edges[e] # the edge on border
         edge = I.mesh.vertices[e2] - I.mesh.vertices[e1]
-        for T in I.mesh.half_edges.edge_to_triangles(e1,e2):
+        for T in I.mesh.connectivity.edge_to_faces(e1,e2):
             if T is None: continue # edge may be on boundary
             X,Y = I.local_base(T)
             c = complex(edge.dot(X), edge.dot(Y)) # compute edge in local basis coordinates (edge.dot(Z) = 0 -> complex number for 2D vector)
@@ -150,7 +149,7 @@ def initialize_ff_indices(I : Instance):
     for i,e in enumerate(I.mesh.interior_edges):
         I.ff_indices[i,0] = e
         A,B = I.mesh.edges[e]
-        T1,T2 = I.mesh.half_edges.edge_to_triangles(A,B)
+        T1,T2 = I.mesh.connectivity.edge_to_faces(A,B)
         I.ff_indices[i,1] = I.var_sep_ff + 2*T1
         I.ff_indices[i,2] = I.var_sep_ff + 2*T2
     return I

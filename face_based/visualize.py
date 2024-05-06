@@ -41,9 +41,9 @@ def import_custom_fields(path :str):
     return singu, seams, feat
 
 def get_singu_point_clouds(singu, mesh):
-    PCneg = M.mesh.new_point_cloud()
-    PCpos = M.mesh.new_point_cloud()
-    PCcorner = M.mesh.new_point_cloud()
+    PCneg = M.mesh.PointCloud()
+    PCpos = M.mesh.PointCloud()
+    PCcorner = M.mesh.PointCloud()
     for vid,c in singu:
         pt = mesh.vertices[vid]
         if c==1:
@@ -55,7 +55,7 @@ def get_singu_point_clouds(singu, mesh):
     return PCpos, PCneg, PCcorner
 
 def get_seams(seams, mesh : M.mesh.SurfaceMesh) -> M.mesh.PolyLine:
-    seamMesh = M.mesh.new_polyline()
+    seamMesh = M.mesh.PolyLine()
     hard_edges = seamMesh.edges.create_attribute("hard_edges",bool) # otherwise edges are ignored
     new_v_id = dict()
     vid = 0

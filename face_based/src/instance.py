@@ -66,7 +66,7 @@ class Instance:
             self._singular_vertices = self.mesh.vertices.create_attribute("singuls", float)
             for v in self.mesh.id_vertices:
                 angle = self.defect[v]
-                for e in self.mesh.connectivity.vertex_to_edge(v):
+                for e in self.mesh.connectivity.vertex_to_edges(v):
                     u = self.mesh.connectivity.other_edge_end(e,v)
                     w = 2*atan(self.get_var_rot(e))
                     angle += w if v<u else -w

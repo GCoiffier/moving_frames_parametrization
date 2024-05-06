@@ -79,7 +79,7 @@ class Optimizer(Worker):
             else:
                 ncstr_ff = 0 # for feature frame field constraints
                 for e in I.feat.feature_edges:
-                    for T in I.mesh.half_edges.edge_to_triangles(*I.mesh.edges[e]):
+                    for T in I.mesh.connectivity.edge_to_faces(*I.mesh.edges[e]):
                         if T is None: continue # edge may be on boundary
                         rows += [irow, irow+1]
                         cols += [I.var_sep_ff + 2*T, I.var_sep_ff + 2*T+1]
@@ -91,7 +91,7 @@ class Optimizer(Worker):
         ncstr_fe = 0 # for border and feature curves alignment with normal
         for ie in I.feat.feature_edges:
             u,v = I.mesh.edges[ie]
-            for T in I.mesh.half_edges.edge_to_triangles(u,v):
+            for T in I.mesh.connectivity.edge_to_faces(u,v):
                 if T is None: continue
                 X,Y = I.local_base(T)
                 E = I.mesh.vertices[v] - I.mesh.vertices[u]

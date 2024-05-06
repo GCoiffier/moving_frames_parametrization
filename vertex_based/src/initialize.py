@@ -54,8 +54,8 @@ def init_local_bases(I : Instance, free_bnd):
             # initialize angles of every edge in this basis -> flatten to 2pi
             ang = 0.
             bnd = I.mesh.is_vertex_on_border(u)
-            for v in I.mesh.connectivity.vertex_to_vertex(u):
-                T = I.mesh.half_edges.adj(u,v)[0]
+            for v in I.mesh.connectivity.vertex_to_vertices(u):
+                T = I.mesh.connectivity.direct_face(u,v)
                 if bnd:
                     I.connection._transport[(u,v)] = ang * pi / I.defect[u]
                 else:
@@ -90,7 +90,7 @@ def init_variables_edges(I : Instance, free_bnd):
     I.edge_lengths = -1*np.ones((len(I.work_mesh.edges), 3), dtype=np.float64)
 
     for u, Pu in enumerate(I.work_mesh.vertices):
-        edges_u = I.work_mesh.connectivity.vertex_to_edge(u) # the edges around u
+        edges_u = I.work_mesh.connectivity.vertex_to_edges(u) # the edges around u
         for ie in edges_u:
             e = I.work_mesh.edges[ie]
             direct = (e[0]==u) # edge is (u,v) or (v,u)
@@ -108,7 +108,12 @@ def init_variables_edges(I : Instance, free_bnd):
                 var_edge[4*ie+2] = evar.real
                 var_edge[4*ie+3] = evar.imag
             
-            for iw,w in enumerate((I.work_mesh.half_edges.next_around(u,v), I.work_mesh.half_edges.prev_around(u,v))):
+            # get vertices from other extremities of triangles adjacent to (u,v)
+            T1,iu1,iv1 = I.work_mesh.connectivity.direct_face(u,v,True)
+            T2,iv2,iu2 = I.work_mesh.connectivity.direct_face(v,u,True)
+            next_v = I.work_mesh.ith_vertex_of_face(T1, 3-iu1-iv1) if T1 is not None else None
+            prev_v = I.work_mesh.ith_vertex_of_face(T2, 3-iu2-iv2) if T2 is not None else None
+            for iw,w in enumerate((next_v, prev_v)):
                 if w is not None:
                     T = I.work_mesh.connectivity.face_id(u,v,w)
                     iuT = I.work_mesh.connectivity.in_face_index(T,u)
@@ -132,14 +137,12 @@ def init_variables_edges(I : Instance, free_bnd):
     return var_edge
 
 def init_var_ff_on_feat(I : Instance, var_edge):
-    """
-    Initializes frame field variables. Zero everywhere except on boundary and features edges where the frame follows the edge.
-    """
+    """Initializes frame field variables. Zero everywhere except on boundary and features edges where the frame follows the edge."""
     I.var_sep_ff = I.nvar
     ffvar = np.zeros(len(I.work_mesh.vertices), dtype=complex)
     for v in I.feat.feature_vertices:
         for ie in I.feat.local_feat_edges[v]:
-            e = I.work_mesh.connectivity.vertex_to_edge(v)[ie]
+            e = I.work_mesh.connectivity.vertex_to_edges(v)[ie]
             direct = I.work_mesh.edges[e][0]==v
             nmid = 4*e if direct else 4*e + 2
             zv = complex(var_edge[nmid], var_edge[nmid + 1])
@@ -334,7 +337,7 @@ def init_var_ff_and_rot_random(I : Instance, var_edge):
         var_ff[2*v] = 0
         var_ff[2*v+1] = 0
         for ie in I.feat.local_feat_edges[v]:
-            e = I.work_mesh.connectivity.vertex_to_edge(v)[ie]
+            e = I.work_mesh.connectivity.vertex_to_edges(v)[ie]
             direct = I.work_mesh.edges[e][0]==v
             nmid = 4*e if direct else 4*e + 2
             zv = complex(var_edge[nmid], var_edge[nmid+1])
@@ -439,14 +442,14 @@ def init_edge_indices(I : Instance):
     # then all the pi/pj or qi/qj pairs
     ind_i = 0
     for T in I.work_mesh.id_faces:
-        for ie in I.work_mesh.connectivity.face_to_edge(T):
+        for ie in I.work_mesh.connectivity.face_to_edges(T):
             A,B = I.work_mesh.edges[ie]
             iA = I.work_mesh.connectivity.in_face_index(T,A)
             iB = I.work_mesh.connectivity.in_face_index(T,B)
             I.edge_indices[ind_i, 0] = ie
             I.edge_indices[ind_i, 1] = I.var_sep_pt + 6*T  + 2*iA
             I.edge_indices[ind_i, 2] = I.var_sep_pt + 6*T  + 2*iB
-            if I.work_mesh.half_edges.adj(A,B)[0]==T:
+            if I.work_mesh.connectivity.direct_face(A,B)==T:
                 new_lengths[len_i] = I.edge_lengths[ie,1]
             else:
                 new_lengths[len_i] = I.edge_lengths[ie,2]

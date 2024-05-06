@@ -118,7 +118,7 @@ class Instance:
         Returns:
             PolyLine: the frame field as a mesh object
         """
-        FFMesh = M.mesh.new_polyline()
+        FFMesh = M.mesh.PolyLine()
         L = M.attributes.mean_edge_length(self.work_mesh)/4
         for id_vertex, P in enumerate(self.work_mesh.vertices):
             if id_vertex >= len(self.connection._baseX): continue

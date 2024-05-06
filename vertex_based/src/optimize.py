@@ -113,7 +113,7 @@ class Optimizer(Worker):
             self.cstRHS_u += [0]*ncstr_fe
             for v in I.feat.feature_vertices:
                 for ie in I.feat.local_feat_edges[v]:
-                    e = I.work_mesh.connectivity.vertex_to_edge(v)[ie]
+                    e = I.work_mesh.connectivity.vertex_to_edges(v)[ie]
                     direct = I.work_mesh.edges[e][0]==v
                     nmid = 4*e if direct else 4*e + 2
                     mid = M.Vec(I.var[nmid], I.var[nmid + 1])
@@ -139,7 +139,7 @@ class Optimizer(Worker):
                 if len(split_v)<2 : continue # no need to split (should not happen)
                 for a,b in M.utils.consecutive_pairs(split_v):
                     # extract pair of edges
-                    va,vb = I.work_mesh.connectivity.vertex_to_vertex(a)[-1], I.work_mesh.connectivity.vertex_to_vertex(b)[0]
+                    va,vb = I.work_mesh.connectivity.vertex_to_vertices(a)[-1], I.work_mesh.connectivity.vertex_to_vertices(b)[0]
                     iea, ieb = I.work_mesh.connectivity.edge_id(a,va), I.work_mesh.connectivity.edge_id(b,vb)
                     iea = 4*iea if a<va else 4*iea+2
                     ieb = 4*ieb if b<vb else 4*ieb+2
@@ -157,7 +157,7 @@ class Optimizer(Worker):
                     # for the last pair (closure of ring), we apply the defect:
                     # ea * exp( - i A_ab) = eb * exp( - i A_ba ) * exp( i * defect)
                     a,b = split_v[-1], split_v[0]
-                    va,vb = I.work_mesh.connectivity.vertex_to_vertex(a)[-1], I.work_mesh.connectivity.vertex_to_vertex(b)[0]
+                    va,vb = I.work_mesh.connectivity.vertex_to_vertices(a)[-1], I.work_mesh.connectivity.vertex_to_vertices(b)[0]
                     iea, ieb = I.work_mesh.connectivity.edge_id(a,va), I.work_mesh.connectivity.edge_id(b,vb)
                     iea = 4*iea if a<va else 4*iea+2
                     ieb = 4*ieb if b<vb else 4*ieb+2

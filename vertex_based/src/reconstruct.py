@@ -44,9 +44,7 @@ def split_singular_triangles(I : Instance):
     # Resets invalid connectivity
     # This shouldn't be necessary but better be explicit
     I.mesh.connectivity.clear()
-    I.mesh.half_edges.clear()
     I.work_mesh.connectivity.clear()
-    I.work_mesh.half_edges.clear()
     return I
 
 def replace_singularities_barycenter(I : Instance):
@@ -67,19 +65,19 @@ def replace_singularities_barycenter(I : Instance):
             pA, pB, pC, pS = (M.Vec( X.dot(_p), Y.dot(_p) ) for _p in (pA,pB,pC,pS)) # project in basis of the triangle
 
             # Get coordinates in u,v space
-            T1, iA1, iS1 = I.mesh.half_edges.adj(A,S) # T1 = ACS
+            T1, iA1, iS1 = I.mesh.connectivity.direct_face(A,S,True) # T1 = ACS
             iC1 = 3 - iA1 - iS1
             cnr = I.mesh.connectivity.face_to_first_corner(T1)
             uA1, uC1, uS1 = ( M.Vec(I.UVs[cnr + _i].x, I.UVs[cnr + _i].y) for _i in (iA1,iC1,iS1))
             area1 = geom.triangle_area_2D(uA1,uC1,uS1)
 
-            T2, iB2, iS2 = I.mesh.half_edges.adj(B,S) # T2 = ABS
+            T2, iB2, iS2 = I.mesh.connectivity.direct_face(B,S,True) # T2 = ABS
             iA2 = 3 - iB2 - iS2
             cnr = I.mesh.connectivity.face_to_first_corner(T2)
             uA2, uB2, uS2 = ( M.Vec(I.UVs[cnr + _i].x, I.UVs[cnr + _i].y) for _i in (iA2,iB2,iS2))
             area2 = geom.triangle_area_2D(uA2,uB2,uS2)
 
-            T3, iC3, iS3 = I.mesh.half_edges.adj(C,S) # T3 = BCS
+            T3, iC3, iS3 = I.mesh.connectivity.direct_face(C,S,True) # T3 = BCS
             iB3 = 3 - iC3 - iS3
             cnr = I.mesh.connectivity.face_to_first_corner(T3)
             uB3, uC3, uS3 = ( M.Vec(I.UVs[cnr + _i].x, I.UVs[cnr + _i].y) for _i in (iB3,iC3,iS3))
@@ -149,9 +147,9 @@ def rescale_uvs(I : Instance):
     if I.feat.feature_edges:
         e = list(I.feat.feature_edges)[0]
         A,B = I.work_mesh.edges[e]
-        T, iA,iB = I.work_mesh.half_edges.adj(A,B)
+        T, iA,iB = I.work_mesh.connectivity.direct_face(A,B,True)
         if T is None:
-            T,iB,iA = I.work_mesh.half_edges.adj(B,A)
+            T,iB,iA = I.work_mesh.connectivity.direct_face(B,A,True)
         cnr = I.work_mesh.connectivity.face_to_first_corner(T)
         vec = I.UVs[cnr+ iB] - I.UVs[cnr + iA]
         angle = -atan2(vec.y, vec.x)
@@ -218,7 +216,7 @@ class ParamConstructor(Worker):
 
     def export_singularity_point_cloud(self) -> M.mesh.PointCloud:
         I = self.instance
-        I.singu_ptcld = M.mesh.new_point_cloud()
+        I.singu_ptcld = M.mesh.PointCloud()
         index = I.singu_ptcld.vertices.create_attribute("index", float)
         i = 0
         for iF in I.work_mesh.id_faces:
@@ -238,16 +236,16 @@ class ParamConstructor(Worker):
         """Builds the parametrization as if (x,y) = (u,v)"""
         if not self.reconstructed : return None 
         I = self.instance
-        I.param_mesh = M.mesh.new_surface()
+        I.param_mesh = M.mesh.RawMeshData()
         for T in I.mesh.id_faces:
             cnr = I.mesh.connectivity.face_to_first_corner(T)
             for i in range(3):
                 I.param_mesh.vertices.append(M.Vec(I.UVs[cnr + i].x, I.UVs[cnr + i].y, 0.))
             I.param_mesh.faces.append((3*T,3*T+1,3*T+2))
-            I.param_mesh.face_corners += [3*T,3*T+1,3*T+2]
         singular_tri = I.param_mesh.faces.create_attribute("singular", bool)
         for f in I.triplets_of_triangles:
             singular_tri[f] = True
+        I.param_mesh = M.mesh.SurfaceMesh(I.param_mesh)
         return I.param_mesh
 
     def export_disk_mesh(self):
@@ -317,7 +315,7 @@ class ParamConstructor(Worker):
             if e in self.cutter.cut_edges: 
                 return False
             if T1 is None or T2 is None:
-                T1,T2 = I.mesh.half_edges.edge_to_triangles(a,b)
+                T1,T2 = I.mesh.connectivity.edge_to_faces(a,b)
             if T1 is None or T2 is None: 
                 return False # edge on border -> no need to push in queues
             is_feat = (e in I.feat.features_edges_no_cuts)
@@ -338,13 +336,13 @@ class ParamConstructor(Worker):
         visited[root] = True
 
         # append adjacent triangles
-        TAB, iA, iB = I.mesh.half_edges.opposite(A, B, root)
+        TAB, iA, iB = I.mesh.connectivity.opposite_face(A, B, root, True)
         push(root, TAB, A, iA, pA, B, iB, pB)
 
-        TBC, iB, iC = I.mesh.half_edges.opposite(B, C, root)
+        TBC, iB, iC = I.mesh.connectivity.opposite_face(B, C, root, True)
         push(root, TBC, B, iB, pB, C, iC, pC)
 
-        TCA, iC, iA = I.mesh.half_edges.opposite(C, A, root)
+        TCA, iC, iA = I.mesh.connectivity.opposite_face(C, A, root, True)
         push(root, TCA, C, iC, pC, A, iA, pA)
         
         # traverse the face tree
@@ -378,9 +376,9 @@ class ParamConstructor(Worker):
                 pA,pB,pS = qA,qB,qS # ref for later
 
                 if T_on_cut : # build T1 and T2 in consistent order
-                    if I.mesh.half_edges.opposite(B,S,T)[0] is None or (not can_traverse(B,S)): # triangles are on the other side but we take B as a notation
+                    if I.mesh.connectivity.opposite_face(B,S,T) is None or (not can_traverse(B,S)): # triangles are on the other side but we take B as a notation
                         B, pB = A, pA
-                    T1, iBT1, iST1 = I.mesh.half_edges.opposite(B,S,T)
+                    T1, iBT1, iST1 = I.mesh.connectivity.opposite_face(B,S,T, True)
                     if T1 is None or (not can_traverse(B,S)): continue # we cannot traverse on both side -> stop here
 
                     visited[T1] = True
@@ -395,12 +393,12 @@ class ParamConstructor(Worker):
                     I.UVs[cnr + iCT1] = qC.xy
                     I.UVs[cnr + iST1] = qS.xy
 
-                    T1n, iBT1, iCT1 = I.mesh.half_edges.opposite(B,C,T1)
+                    T1n, iBT1, iCT1 = I.mesh.connectivity.opposite_face(B,C,T1, True)
                     push(T1, T1n, B, iBT1, qB, C, iCT1, qC)
 
                     # T2
                     pS,pC = qS,qC
-                    T2, iCT2, iST2 = I.mesh.half_edges.opposite(C,S,T1)
+                    T2, iCT2, iST2 = I.mesh.connectivity.opposite_face(C,S,T1, True)
                     if T2 is None or (not can_traverse(C,S)): continue # cannot access third triangle -> stop here
                     visited[T2] = True
                     iDT2 = 3 - iCT2 - iST2
@@ -411,11 +409,11 @@ class ParamConstructor(Worker):
                     I.UVs[cnr + iCT2] = qC.xy
                     I.UVs[cnr + iDT2] = qD.xy
                     I.UVs[cnr + iST2] = qS.xy
-                    T2n, iCT2, iDT2 = I.mesh.half_edges.opposite(C,D,T2)
+                    T2n, iCT2, iDT2 = I.mesh.connectivity.opposite_face(C,D,T2, True)
                     push(T2, T2n, C,iCT2, qC, D, iDT2, qD)
 
                 else : # build T1 in one side and T2 in another
-                    T1, iAT1, iST1 = I.mesh.half_edges.opposite(A,S,T) # T1 on side of A
+                    T1, iAT1, iST1 = I.mesh.connectivity.opposite_face(A,S,T,True) # T1 on side of A
                     if T1 is not None and can_traverse(A,S):
                         visited[T1] = True
                         iCT1 = 3 - iAT1 - iST1
@@ -428,10 +426,10 @@ class ParamConstructor(Worker):
                         I.UVs[cnr + iAT1] = qA.xy
                         I.UVs[cnr + iCT1] = qC.xy
                         I.UVs[cnr + iST1] = qS.xy
-                        T1n, iAT1, iCT1 = I.mesh.half_edges.opposite(A,C,T1)
+                        T1n, iAT1, iCT1 = I.mesh.connectivity.opposite_face(A,C,T1,True)
                         push(T1,T1n, A, iAT1, qA, C, iCT1, qC)
 
-                    T2, iBT2, iST2 = I.mesh.half_edges.opposite(B,S,T) # T2 on side of B
+                    T2, iBT2, iST2 = I.mesh.connectivity.opposite_face(B,S,T, True) # T2 on side of B
                     if T2 is not None and can_traverse(B,S):
                         visited[T2] = True
                         iDT2 = 3 - iBT2 - iST2
@@ -443,7 +441,7 @@ class ParamConstructor(Worker):
                         I.UVs[cnr + iBT2] = qB.xy
                         I.UVs[cnr + iDT2] = qD.xy
                         I.UVs[cnr + iST2] = qS.xy
-                        T2n, iBT2, iDT2 = I.mesh.half_edges.opposite(B,D,T2)
+                        T2n, iBT2, iDT2 = I.mesh.connectivity.opposite_face(B,D,T2, True)
                         push(T2,T2n, B, iBT2, qB, D, iDT2, qD)
             
             else: # regular triangle
@@ -456,10 +454,10 @@ class ParamConstructor(Worker):
                 I.UVs[cnr + iBT] = qB.xy
                 I.UVs[cnr + iCT] = qC.xy
 
-                T1, iAT, iCT = I.mesh.half_edges.opposite(A,C,T)
+                T1, iAT, iCT = I.mesh.connectivity.opposite_face(A,C,T, True)
                 push(T, T1, A, iAT, qA, C, iCT, qC)
 
-                T2, iBT, iCT = I.mesh.half_edges.opposite(B,C,T)
+                T2, iBT, iCT = I.mesh.connectivity.opposite_face(B,C,T, True)
                 push(T, T2, B, iBT, qB, C, iCT, qC)
         self.log("Tree traversal done.")
 

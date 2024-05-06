@@ -1,4 +1,4 @@
-mouette==1.1.6
+mouette==1.2.0
 osqp
 numba
 numpy

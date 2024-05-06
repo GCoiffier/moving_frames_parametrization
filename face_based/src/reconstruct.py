@@ -37,9 +37,9 @@ def rescale_uvs(I : Instance):
     if I.feat.feature_edges:
         e = list(I.feat.feature_edges)[0]
         A,B = I.mesh.edges[e]
-        T, iA,iB = I.mesh.half_edges.adj(A,B)
+        T, iA,iB = I.mesh.connectivity.direct_face(A,B,True)
         if T is None:
-            T,iB,iA = I.mesh.half_edges.adj(B,A)
+            T,iB,iA = I.mesh.connectivity.direct_face(B,A,True)
         vec = I.UVs[3*T+iB] - I.UVs[3*T+iA]
         angle = -math.atan2(vec.y, vec.x)
     else:
@@ -87,7 +87,7 @@ class ParamConstructor(Worker):
 
     def export_frame_field(self) -> M.mesh.PolyLine:
         I = self.instance
-        FFMesh = M.mesh.new_polyline()
+        FFMesh = M.mesh.PolyLine()
         L = M.attributes.mean_edge_length(I.mesh)/3
         for id_face, face in enumerate(I.mesh.faces):
             pA,pB,pC = (I.mesh.vertices[u] for u in face)
@@ -114,7 +114,7 @@ class ParamConstructor(Worker):
 
     def export_singularity_point_cloud(self) -> M.mesh.PointCloud:
         I = self.instance
-        I.singu_ptcld = M.mesh.new_point_cloud()
+        I.singu_ptcld = M.mesh.PointCloud()
         index = I.singu_ptcld.vertices.create_attribute("index", int)
         i = 0
         for iV in I.singular_vertices:
@@ -209,7 +209,7 @@ class ParamConstructor(Worker):
                 I.UVs[3*root+2] = pC
                 continue
 
-            A,B = I.mesh.half_edges.common_edge(T,parent) # common vertices
+            A,B = I.mesh.connectivity.common_edge(T,parent) # common vertices
             iA,iB = (I.mesh.connectivity.in_face_index(parent,_u) for _u in (A,B))
             jA,jB = (I.mesh.connectivity.in_face_index(T,_u) for _u in (A,B))
             jC = 3-jA-jB
