@@ -6,6 +6,8 @@ Global seamless parametrization algorithm for triangular meshes using Cartan's m
 
 [_The method of moving frames for surface global parametrization_, Guillaume Coiffier and Etienne Corman, _Transaction on Graphics_, 2023](https://dl.acm.org/doi/abs/10.1145/3604282)
 
+See also the [project page](https://gcoiffier.github.io/publications/moving_frames/)
+
 ## Installation and dependencies
 
 From the main folder, run the command:
