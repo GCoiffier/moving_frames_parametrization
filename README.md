@@ -39,7 +39,7 @@ Inputs of both versions of the algorithm consist in a triangular mesh, given eit
 Outputs consist in a subfolder in the `output` directory, containing :
 - an `.obj` file with uv-coordinates and additionnal fields for cone and seam positions
 
-- a `.csv` file containing a summary of the result's distortion as well as various infos (like execution time or number of singularities). Distortion measures used in the paper are `authalic` and `stretch_mean`. Distortion meaning can be found in the documentation of mouette : https://gcoiffier.github.io/mouette/Algorithms/Parametrization/00_distortion/
+- a `.csv` file containing a summary of the result's distortion as well as various infos (like execution time or number of singularities). Distortion measures used in the paper are `authalic` and `stretch_mean`. Distortion meaning can be found in the documentation of mouette : [https://gcoiffier.github.io/mouette/Algorithms/Parametrization/00_distortion/](https://gcoiffier.github.io/mouette/04%20-%20Algorithms/Parametrization/99_distortion/)
 
 - if the `--debug-output` option is used, additionnal files to visualize different quantities on the mesh (in form of `.obj` and `.geogram_ascii` files). To read the `.geogram_ascii` files, use the Graphite software : https://github.com/BrunoLevy/GraphiteThree
 
