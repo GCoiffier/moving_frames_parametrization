@@ -50,8 +50,8 @@ if __name__ == "__main__":
     parser.add_argument("-dist", "--distortion", type=str, choices=DIST_CHOICES, default="none", \
         help="choice of distortion")
 
-    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["auto", "zero", "smooth"], default="auto", \
-        help="Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enable and 'smooth' otherwise")
+    parser.add_argument("-init-mode", "--init-mode", type=str, choices=["auto", "zero", "smooth", "curv"], default="auto", \
+        help="Initialization mode for frame field and rotations. Set to 'auto' by default, i.e. 'zero' if features are enabled and 'smooth' otherwise")
 
     parser.add_argument("-optim-fixed-ff", "--optim-fixed-ff", action="store_true", \
         help="Runs the optimization with a fixed frame field.")

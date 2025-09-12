@@ -145,7 +145,7 @@ class ParamConstructor(Worker):
     def export_disk_mesh(self):
         """Input mesh but with a disk topology, where seams are real cuts"""
         I = self.instance
-        I.disk_mesh = M.mesh.copy(self.cutter.output_mesh)
+        I.disk_mesh = M.mesh.copy(self.cutter.cut_mesh)
         UVcut = I.disk_mesh.face_corners.create_attribute("uv_coords",float,2)
         for T in I.mesh.id_faces:
             for i in range(3):

@@ -16,7 +16,7 @@ from .common import *
 def rescale_input_mesh(I : Instance):
     """Rescales the mesh to avoid numerical problems"""
     Lmean = M.attributes.mean_edge_length(I.mesh)
-    I.mesh = M.processing.split_double_boundary_edges_triangles(I.mesh) # sanity check
+    I.mesh = M.mesh.subdivision.split_double_boundary_edges_triangles(I.mesh) # sanity check
     I.mesh = M.transform.scale(I.mesh, 1/Lmean)
     return I
 
@@ -194,7 +194,7 @@ def init_var_rotations(I : Instance, var_ff):
 
     ## build start w for rotation penalty energy
     # constraints
-    cstrfaces = M.attributes.faces_near_border(I.work_mesh, 4)
+    cstrfaces = M.attributes.face_near_border(I.work_mesh, 4)
 
     ncstr = len(I.feat.feature_edges)
     nvar = len(I.work_mesh.edges)

@@ -1,7 +1,9 @@
-import numpy as np
 import os
+import numpy as np
+
+import osqp
 from osqp import OSQP
-import scipy.sparse as sp
+from scipy import sparse as sp
 from dataclasses import dataclass
 
 import mouette as M
@@ -16,15 +18,6 @@ from tqdm import tqdm, trange
 from tqdm.utils import _term_move_up
 prefix = _term_move_up() + '\r'
 
-##########
-
-def get_osqp_lin_solver():
-    try:
-        inst = OSQP()
-        inst.setup(P=sp.identity(1, format="csc"), verbose=False, linsys_solver="mkl pardiso")
-        return "mkl pardiso"
-    except ValueError:
-        return "qdldl"
 
 ##########
 
@@ -68,9 +61,8 @@ class Optimizer(Worker):
         self.singu_det_threshold = 0.5 # minimal ratio value for the singularity barrier term 
         self.orient_det_threshold = 0.5 # minimal ratio value for the orientation barrier term
 
-        self._linsys_solver : str = get_osqp_lin_solver() # 'mkl pardiso' or 'qdldl'
-        if self._linsys_solver == 'qdldl':
-            self.log("WARNING : OSQP will run with qdldl as its internal linear solver.\n For better performance, we recommend to install and use 'mkl pardiso' instead : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html")
+        if osqp.default_algebra() == 'builtin':
+            self.log("WARNING : OSQP will run with its builting internal linear solver.\n For better performance, we recommend to install and use 'mkl pardiso' instead : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html")
             print("\n\n")
 
     def compute_constraints(self):
@@ -367,7 +359,7 @@ class Optimizer(Worker):
                     verbose=self.verbose_options.qp_solver_verbose,
                     eps_abs=1e-3, eps_rel=1e-3,
                     max_iter=100, polish=True, check_termination=10, 
-                    adaptive_rho=True, linsys_solver=self._linsys_solver)
+                    adaptive_rho=True)
                 s = osqp_instance.solve().x
 
                 if s[0] is not None:

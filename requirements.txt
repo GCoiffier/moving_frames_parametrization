@@ -1,5 +1,5 @@
-mouette==1.2.0
-osqp
+mouette
+osqp==1.0.4
 numba
 numpy
 scipy

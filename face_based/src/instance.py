@@ -73,7 +73,7 @@ class Instance:
                 if abs(angle)>ZERO_THRESHOLD:
                     self._singular_vertices[v] = angle*2/pi
             
-            ff = M.framefield.SurfaceFrameField(self.mesh,"faces", custom_connection=self.connection)
+            ff = M.framefield.SurfaceFrameField(self.mesh, "faces", custom_connection=self.connection)
             ff.initialize()
             for T in self.mesh.id_faces:
                 fft = self.get_var_ff(T)

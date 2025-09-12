@@ -4,8 +4,10 @@ from collections import deque
 
 import mouette as M
 import mouette.geometry as geom
+from mouette.mesh.mesh_attributes import Attribute
 from mouette.geometry import rotate_2d
-from mouette.processing import SingularityCutter, SurfaceSubdivision
+from mouette.mesh import SurfaceSubdivision
+from mouette.processing import SingularityCutter
 
 from .common import *
 from .instance import Instance
@@ -120,7 +122,7 @@ def delimit_feature_regions(I : Instance, cutter ) -> M.utils.UnionFind:
     """
     triangle_region = M.utils.UnionFind(I.mesh.id_faces)
     forbidden_edges_set = cutter.cut_edges | I.feat.features_edges_no_cuts
-    forbidden_edges = M.Attribute(bool) #self.input_mesh.edges.create_attribute("forbidden_edges", bool)
+    forbidden_edges = Attribute(bool) #self.input_mesh.edges.create_attribute("forbidden_edges", bool)
     for e in forbidden_edges_set:
         forbidden_edges[e] = True
 
@@ -251,7 +253,7 @@ class ParamConstructor(Worker):
     def export_disk_mesh(self):
         """Input mesh but with a disk topology, where seams are real cuts"""
         I = self.instance
-        I.disk_mesh = M.mesh.copy(self.cutter.output_mesh)
+        I.disk_mesh = M.mesh.copy(self.cutter.cut_mesh)
         UVcut = I.disk_mesh.face_corners.create_attribute("uv_coords",float,2)
         for c in I.mesh.id_corners:
             UVcut[c] = I.UVs[c]
@@ -268,7 +270,7 @@ class ParamConstructor(Worker):
         while root in I.triplets_of_triangles: # root is singular
             root += 1
 
-        visited = M.ArrayAttribute(bool, len(I.mesh.faces)) #  I.mesh.faces.create_attribute("visited", bool, dense=True)
+        visited = np.zeros(len(I.mesh.faces), dtype=bool) #  I.mesh.faces.create_attribute("visited", bool, dense=True)
         I.UVs = I.mesh.face_corners.create_attribute("uv_coords", float, 2)
         queue = deque()
 
@@ -469,7 +471,7 @@ class ParamConstructor(Worker):
         # n_singus_fail = 0 
         
         if n_singus_fail>0:
-            self.log(f"/!\ {n_singus_fail} singularities failed to be positionned inside their triangle")
+            self.log(f"/!\\ {n_singus_fail} singulagrities failed to be positionned inside their triangle")
         else:
             self.log("All singularities have been positionned")
 

@@ -64,6 +64,7 @@ class InitMode(Enum):
     AUTO = 0 # ZERO if features, SMOOTH if no features
     ZERO   = 1
     SMOOTH = 2
+    CURVATURE = 3
 
     @staticmethod
     def from_string(s :str):
@@ -73,6 +74,8 @@ class InitMode(Enum):
             return InitMode.ZERO
         if "smooth" in s.lower():
             return InitMode.SMOOTH
+        if "curv" in s.lower():
+            return InitMode.CURVATURE
         raise Exception(f"InitMode {s} not recognized")
 
 ##### Default running options #####

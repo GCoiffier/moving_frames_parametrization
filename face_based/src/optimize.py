@@ -11,16 +11,6 @@ from osqp import OSQP
 
 ##########
 
-def get_osqp_lin_solver():
-    try:
-        inst = OSQP()
-        inst.setup(P=sp.identity(1, format="csc"), verbose=False, linsys_solver="mkl pardiso")
-        return "mkl pardiso"
-    except ValueError:
-        return "qdldl"
-
-##########
-
 class Optimizer(Worker):
     def __init__(self, 
     instance: Instance, 
@@ -50,11 +40,6 @@ class Optimizer(Worker):
             self.edge_weight : float = 1.
             self.FF_weight : float = self.options.lambda_f
         self.dist_weight : float = 1.
-
-        self._linsys_solver = get_osqp_lin_solver()
-        if self._linsys_solver == 'qdldl':
-            self.log("WARNING : OSQP will run with qdldl as its internal linear solver.\n For better performance, we recommend to install and use 'mkl pardiso' instead : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html")
-            print("\n\n")
 
     def compute_constraints(self):
         I = self.instance
@@ -102,6 +87,18 @@ class Optimizer(Worker):
                 coeffs += [-e.x*e.y, e.x*e.x, -e.y*e.y, e.x*e.y]
                 irow += 1
                 ncstr_fe += 1
+        # for ie in I.feat.feature_edges:
+        #     u,v = I.mesh.edges[ie]
+        #     for T in I.mesh.connectivity.edge_to_faces(u,v):
+        #         if T is None: continue
+        #         X,Y = I.local_base(T)
+        #         E = I.mesh.vertices[v] - I.mesh.vertices[u]
+        #         e = M.Vec(X.dot(E), Y.dot(E))
+        #         rows += [irow, irow, irow+1, irow+1]
+        #         cols += [4*T, 4*T+2, 4*T+1, 4*T+3]
+        #         coeffs += [e.x, e.y, e.x, e.y]
+        #         irow += 2
+        #         ncstr_fe += 2
         
         ### Finalize without distortion
         self.cstMat = sp.csc_matrix( (coeffs, (rows , cols)), shape=(ncstr_ff + ncstr_fe,I.nvar))
@@ -210,7 +207,7 @@ class Optimizer(Worker):
             MIN_DELTA_E   = 0.
         )
 
-        self.optimizer = M.optimize.LevenbergMarquardt(HP=optimhp, lin_solver=self._linsys_solver, verbose=lmverbose)
+        self.optimizer = M.optimize.LevenbergMarquardt(HP=optimhp, verbose=lmverbose)
         self.optimizer.register_constraints(self.cstMat, self.cstRHS_l, self.cstRHS_u)
         self.optimizer.set_metric_matrix(self.metric_matrix)
 

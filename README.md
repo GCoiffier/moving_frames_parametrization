@@ -8,7 +8,7 @@ Global seamless parametrization algorithm for triangular meshes using Cartan's m
 
 ## Installation and dependencies
 
-From the main folder, run the command:
+From the main folder, create a virtual environment (recommmended) run the command:
 ```
 pip install -r requirements.txt
 ```
@@ -21,15 +21,17 @@ This will install the needed python modules and their dependencies :
 - [osqp](https://osqp.org/) (quadratic programming solver)
 - [mouette](https://github.com/GCoiffier/mouette), our library for the handling of mesh data structures as well as classical geometry processing algorithms
 
-If you are in the `vertex_based` or the `face_based` folder, the following command then should output a parametrization :
+If you are in the `vertex_based` or the `face_based` folder, the following command then should output a parametrization:
 
 ```python main.py -feat ../test_inputs/flap.obj```
 
-#### Linear solver options
+#### OSQP linear solver backend
 
-By default, OSQP works with the `qdldl` linear solver for its internal loop. It has however poor performance in our case (as we did not figure out a way not to perform the Cholesky decomposition every iteration). We therefore rely on Intel `oneMKL pardiso` solver for the internal solver of OSQP (https://osqp.org/docs/get_started/linear_system_solvers.html). To install, follow the instructions on their website : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html. After installation, OSQP should find the solver automatically and the warning message should dissapear.
+The builtin backend for OSQP has poor performance in our case (as we did not figure out a way not to perform the Cholesky decomposition every iteration). We therefore rely on Intel `oneMKL pardiso` solver for the internal solver of OSQP (https://osqp.org/docs/get_started/linear_system_solvers.html). To install, follow the instructions on their website : https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html. After installation, OSQP should find the solver automatically and the warning message should dissapear.
 
-The code has been tested on Ubuntu 18.04, 20.04 and 22.04.
+See the OSQP installation page for more details:  [https://osqp.org/docs/get_started/python.html](https://osqp.org/docs/get_started/python.html)
+
+The code has been tested on Ubuntu 22.04 and 24.04.
 
 ## Input and output
 

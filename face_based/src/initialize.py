@@ -15,7 +15,7 @@ def initialize_features(I : Instance, features:bool, verbose:bool):
     I.feat = M.processing.FeatureEdgeDetector(only_border = not features, verbose=verbose)(I.mesh)
     split = False
     # subdivide triangles with two or more feature edges
-    with M.processing.SurfaceSubdivision(I.mesh) as subdiv:
+    with M.mesh.SurfaceSubdivision(I.mesh) as subdiv:
         for iF in I.mesh.id_faces:
             eF = I.mesh.connectivity.face_to_edges(iF)
             n_adj_feat = sum([e in I.feat.feature_edges for e in eF])
@@ -122,8 +122,11 @@ def initialize_var_ff_trivial_connection(I: Instance):
     return var_ff, var_rot
 
 
-def initialize_var_ff_smooth(I: Instance, feat:bool, verbose:bool, compute_singus):
-    ff = M.framefield.SurfaceFrameField(I.mesh, "faces", features=feat, verbose=verbose, cad_correction=True, custom_connection=I.connection, custom_features=I.feat)()
+def initialize_var_ff_smooth(I: Instance, feat:bool, verbose:bool, compute_singus, is_curvature):
+    if is_curvature:
+        ff = M.framefield.PrincipalDirections(I.mesh, "faces", features=feat, verbose=verbose, custom_connection=I.connection, custom_features=I.feat, n_smooth=0)()
+    else:
+        ff = M.framefield.SurfaceFrameField(I.mesh, "faces", features=feat, verbose=verbose, cad_correction=True, custom_connection=I.connection, custom_features=I.feat)()
     ff.flag_singularities()
     
     if compute_singus:
@@ -185,7 +188,7 @@ class Initializer(Worker):
             var_ff = initialize_var_ff_on_feat(self.instance)
             var_rot = initialize_var_rotations(self.instance)
         else:
-            var_ff, var_rot = initialize_var_ff_smooth(self.instance, self.options.features, verb, self.options.optimFixedFF) # inits both ff and rotations
+            var_ff, var_rot = initialize_var_ff_smooth(self.instance, self.options.features, verb, self.options.optimFixedFF, self.options.initMode==InitMode.CURVATURE) # inits both ff and rotations
         self.instance.var = np.concatenate([var_jac, var_ff, var_rot]).astype(np.float64)
 
         initialize_ff_indices(self.instance)
